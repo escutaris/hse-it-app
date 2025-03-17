@@ -376,7 +376,7 @@ def gerar_sugestoes_acoes(df_resultados):
         if fator in sugestoes_por_fator and nivel_risco in sugestoes_por_fator[fator]:
             sugestoes = sugestoes_por_fator[fator][nivel_risco]
 
-            # Adicionar ao plano de ação
+                        # Adicionar ao plano de ação
             for sugestao in sugestoes:
                 plano_acao.append({
                     "Fator Psicossocial": fator,
@@ -729,7 +729,7 @@ def adicionar_aba_grafico(writer, workbook, df_resultados):
     worksheet.write_column('B1', ['Média'] + list(df_resultados['Média']))
     worksheet.write_column('C1', ['Risco'] + list(df_resultados['Risco']))
     
-    # Criar o gráfico
+        # Criar o gráfico
     chart = workbook.add_chart({'type': 'bar'})
     
     # Configurar o gráfico
@@ -768,6 +768,57 @@ def adicionar_aba_grafico(writer, workbook, df_resultados):
     worksheet.write('A23', '2 < Média ≤ 3: Risco Moderado')
     worksheet.write('A24', '3 < Média ≤ 4: Risco Baixo')
     worksheet.write('A25', 'Média > 4: Risco Muito Baixo')
+
+# Função para gerar PDF do relatório
+def gerar_pdf(df_resultados):
+    try:
+        pdf = FPDF()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.add_page()
+        
+        # Configurando fonte para suporte básico
+        pdf.set_font("Arial", style='B', size=14)
+        
+        # Usando strings sem acentos para evitar problemas de codificação
+        pdf.cell(200, 10, "Relatorio de Fatores Psicossociais (HSE-IT)", ln=True, align='C')
+        pdf.ln(10)
+        
+        pdf.set_font("Arial", size=12)
+        
+        for index, row in df_resultados.iterrows():
+            # Remover acentos e caracteres especiais
+            fator = row['Fator Psicossocial'].encode('ascii', 'replace').decode('ascii')
+            risco = row['Risco'].split(' ')[0] + ' ' + row['Risco'].split(' ')[1]  # Remove emoji
+            pdf.cell(0, 10, f"{fator}: {risco}", ln=True)
+        
+        # Adicionar informações sobre classificação de risco
+        pdf.ln(10)
+        pdf.set_font("Arial", style='B', size=12)
+        pdf.cell(0, 10, "Legenda de Classificacao:", ln=True)
+        pdf.set_font("Arial", size=10)
+        pdf.cell(0, 8, "Risco Muito Alto: Media <= 1", ln=True)
+        pdf.cell(0, 8, "Risco Alto: 1 < Media <= 2", ln=True)
+        pdf.cell(0, 8, "Risco Moderado: 2 < Media <= 3", ln=True)
+        pdf.cell(0, 8, "Risco Baixo: 3 < Media <= 4", ln=True)
+        pdf.cell(0, 8, "Risco Muito Baixo: Media > 4", ln=True)
+        
+        # Corrigindo o problema de BytesIO
+        temp_file = "temp_report.pdf"
+        pdf.output(temp_file)
+        
+        with open(temp_file, "rb") as file:
+            output = io.BytesIO(file.read())
+        
+        import os
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
+        
+        return output
+    
+    except Exception as e:
+        st.error(f"Erro ao gerar o PDF: {str(e)}")
+        return None
+
 # Verificar autenticação antes de mostrar o conteúdo
 if check_password():
     # Criar sistema de abas para melhor organização
@@ -792,6 +843,12 @@ if check_password():
         # Barra lateral para filtros e configurações
         with st.sidebar:
             st.header("Filtros e Configurações")
+            
+            # Inicializar variáveis para evitar erros
+            df_resultados = None
+            df_plano_acao = None
+            filtro_opcao = "Empresa Toda"
+            filtro_valor = "Geral"
             
             if uploaded_file is not None:
                 try:
@@ -847,7 +904,7 @@ if check_password():
     
     # Segunda aba - Visualização de resultados
     with tabs[1]:
-        if uploaded_file is not None:
+        if uploaded_file is not None and df_resultados is not None:
             st.header("Resultados da Avaliação")
             
             # Mostrar estatísticas gerais
@@ -897,7 +954,7 @@ if check_password():
     
     # Terceira aba - Plano de ação
     with tabs[2]:
-        if uploaded_file is not None:
+        if uploaded_file is not None and df_plano_acao is not None:
             st.header("Plano de Ação Sugerido")
             st.write("Com base nos resultados da avaliação, aqui estão sugestões de ações para seu PGR:")
             
@@ -958,7 +1015,7 @@ if check_password():
     
     # Quarta aba - Relatórios
     with tabs[3]:
-        if uploaded_file is not None:
+        if uploaded_file is not None and df_resultados is not None and df_plano_acao is not None:
             st.header("Download de Relatórios")
             
             col1, col2 = st.columns(2)
@@ -998,3 +1055,4 @@ if check_password():
                 )
 else:
     st.stop()  # Não mostrar nada abaixo deste ponto se a autenticação falhar
+
