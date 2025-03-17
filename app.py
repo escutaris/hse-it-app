@@ -3,6 +3,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import io
 from fpdf import FPDF
+import plotly.graph_objects as go
+import plotly.express as px
+from datetime import datetime
 
 # Configuração da página
 st.set_page_config(
@@ -376,7 +379,7 @@ def gerar_sugestoes_acoes(df_resultados):
         if fator in sugestoes_por_fator and nivel_risco in sugestoes_por_fator[fator]:
             sugestoes = sugestoes_por_fator[fator][nivel_risco]
 
-                        # Adicionar ao plano de ação
+            # Adicionar ao plano de ação
             for sugestao in sugestoes:
                 plano_acao.append({
                     "Fator Psicossocial": fator,
@@ -392,7 +395,7 @@ def gerar_sugestoes_acoes(df_resultados):
     df_plano_acao = pd.DataFrame(plano_acao)
     return df_plano_acao
 
-# Função para formatar a aba de plano de ação
+# CORREÇÃO: Função formatar_aba_plano_acao corrigida
 def formatar_aba_plano_acao(workbook, worksheet, df):
     # Definir formatos
     header_format = workbook.add_format({
@@ -425,8 +428,9 @@ def formatar_aba_plano_acao(workbook, worksheet, df):
         worksheet.write(0, col_num, value, header_format)
 
     # Aplicar formatação condicional baseada no nível de risco
-    for row_num, row in enumerate(df.itertuples(), 1):
-        nivel_risco = getattr(row, 'Nível_de_Risco')
+    # Usando iterrows em vez de itertuples para evitar problemas com nomes de colunas
+    for row_num, (_, row) in enumerate(df.iterrows(), 1):
+        nivel_risco = row["Nível de Risco"]
         if nivel_risco in risco_format:
             worksheet.write(row_num, 1, nivel_risco, risco_format[nivel_risco])
 
@@ -819,6 +823,356 @@ def gerar_pdf(df_resultados):
         st.error(f"Erro ao gerar o PDF: {str(e)}")
         return None
 
+# NOVA FUNÇÃO: Dashboard melhorado com visualizações mais ricas
+def criar_dashboard(df_resultados, filtro_opcao, filtro_valor):
+    st.markdown("## Dashboard de Riscos Psicossociais")
+    
+    # Layout com 3 métricas principais
+    col1, col2, col3 = st.columns(3)
+    
+    # Calcular métricas
+    media_geral = df_resultados["Média"].mean()
+    risco_geral, cor_geral = classificar_risco(media_geral)
+    fator_mais_critico = df_resultados.loc[df_resultados["Média"].idxmin()]
+    fator_melhor = df_resultados.loc[df_resultados["Média"].idxmax()]
+    
+    # Exibir métricas com formatação visual melhorada
+    with col1:
+        st.metric(
+            label="Média Geral",
+            value=f"{media_geral:.2f}",
+            delta=risco_geral.split()[0],
+            delta_color="inverse"
+        )
+        st.markdown(f"<div style='text-align: center; color: {cor_geral};'><b>{risco_geral}</b></div>", unsafe_allow_html=True)
+    
+    with col2:
+        st.metric(
+            label="Fator Mais Crítico",
+            value=fator_mais_critico["Fator Psicossocial"],
+            delta=f"{fator_mais_critico['Média']:.2f}",
+            delta_color="off"
+        )
+        risco, cor = classificar_risco(fator_mais_critico["Média"])
+        st.markdown(f"<div style='text-align: center; color: {cor};'><b>{risco}</b></div>", unsafe_allow_html=True)
+    
+    with col3:
+        st.metric(
+            label="Fator Melhor Avaliado",
+            value=fator_melhor["Fator Psicossocial"],
+            delta=f"{fator_melhor['Média']:.2f}",
+            delta_color="off"
+        )
+        risco, cor = classificar_risco(fator_melhor["Média"])
+        st.markdown(f"<div style='text-align: center; color: {cor};'><b>{risco}</b></div>", unsafe_allow_html=True)
+    
+    # Criar gráfico de barras para visualização dos riscos
+    fig = criar_grafico_barras(df_resultados)
+    st.plotly_chart(fig, use_container_width=True)
+    
+    return
+
+# NOVA FUNÇÃO: Gráfico de barras melhorado usando Plotly
+def criar_grafico_barras(df_resultados):
+    # Ordenar resultados do menor para o maior (pior para melhor)
+    df_sorted = df_resultados.sort_values(by="Média")
+    
+    # Preparar dados para o gráfico
+    cores = []
+    hover_texts = []
+    
+    for media in df_sorted["Média"]:
+        _, cor = classificar_risco(media)
+        cores.append(cor)
+    
+    for _, row in df_sorted.iterrows():
+        hover_texts.append(f"Fator: {row['Fator Psicossocial']}<br>" +
+                          f"Média: {row['Média']:.2f}<br>" +
+                          f"Classificação: {row['Risco']}<br>" +
+                          f"Respostas: {row['Número de Respostas']}")
+    
+    # Criar gráfico
+    fig = go.Figure()
+    
+    fig.add_trace(go.Bar(
+        x=df_sorted["Média"],
+        y=df_sorted["Fator Psicossocial"],
+        orientation='h',
+        marker_color=cores,
+        text=[f"{v:.2f}" for v in df_sorted["Média"]],
+        textposition='outside',
+        hovertext=hover_texts,
+        hoverinfo='text'
+    ))
+    
+    # Adicionar linhas verticais para níveis de risco
+    fig.add_shape(
+        type="line",
+        x0=1, y0=-0.5, x1=1, y1=len(df_resultados)-0.5,
+        line=dict(color="Red", width=2, dash="dash")
+    )
+    
+    fig.add_shape(
+        type="line",
+        x0=2, y0=-0.5, x1=2, y1=len(df_resultados)-0.5,
+        line=dict(color="Orange", width=2, dash="dash")
+    )
+    
+    fig.add_shape(
+        type="line",
+        x0=3, y0=-0.5, x1=3, y1=len(df_resultados)-0.5,
+        line=dict(color="Yellow", width=2, dash="dash")
+    )
+    
+    fig.add_shape(
+        type="line",
+        x0=4, y0=-0.5, x1=4, y1=len(df_resultados)-0.5,
+        line=dict(color="Green", width=2, dash="dash")
+    )
+    
+    # Adicionar anotações para níveis de risco
+    fig.add_annotation(x=0.5, y=len(df_resultados), text="Risco Muito Alto", 
+                      showarrow=False, font=dict(color="red"))
+    fig.add_annotation(x=1.5, y=len(df_resultados), text="Risco Alto", 
+                      showarrow=False, font=dict(color="orange"))
+    fig.add_annotation(x=2.5, y=len(df_resultados), text="Risco Moderado", 
+                      showarrow=False, font=dict(color="black"))
+    fig.add_annotation(x=3.5, y=len(df_resultados), text="Risco Baixo", 
+                      showarrow=False, font=dict(color="green"))
+    fig.add_annotation(x=4.5, y=len(df_resultados), text="Risco Muito Baixo", 
+                      showarrow=False, font=dict(color="purple"))
+    
+    # Configurar layout
+    fig.update_layout(
+        title=f"Classificação de Riscos Psicossociais",
+        xaxis_title="Média (Escala 1-5)",
+        yaxis_title="Fator Psicossocial",
+        xaxis=dict(range=[0, 5]),
+        height=500,
+        margin=dict(l=20, r=20, t=50, b=80)
+    )
+    
+    return fig
+
+# NOVA FUNÇÃO: Plano de ação editável
+def plano_acao_editavel(df_plano_acao):
+    st.header("Plano de Ação Personalizado")
+    st.write("Personalize o plano de ação sugerido ou adicione suas próprias ações.")
+    
+    # Inicializar plano de ação no state se não existir
+    if "plano_acao_personalizado" not in st.session_state:
+        st.session_state.plano_acao_personalizado = df_plano_acao.copy()
+    
+    # Criar tabs para cada fator psicossocial
+    fatores_unicos = df_plano_acao["Fator Psicossocial"].unique()
+    factor_tabs = st.tabs(fatores_unicos)
+    
+    # Para cada fator, criar um editor de ações
+    for i, fator in enumerate(fatores_unicos):
+        with factor_tabs[i]:
+            df_fator = st.session_state.plano_acao_personalizado[
+                st.session_state.plano_acao_personalizado["Fator Psicossocial"] == fator
+            ].copy()
+            
+            # Mostrar informações do fator
+            nivel_risco = df_fator["Nível de Risco"].iloc[0]
+            media = df_fator["Média"].iloc[0]
+            
+            # Definir cor com base no nível de risco
+            cor = {
+                "Risco Muito Alto": "red",
+                "Risco Alto": "orange",
+                "Risco Moderado": "yellow",
+                "Risco Baixo": "green",
+                "Risco Muito Baixo": "purple"
+            }.get(nivel_risco, "gray")
+            
+            st.markdown(f"**Média:** {media} - **Nível de Risco:** :{cor}[{nivel_risco}]")
+            
+            # Adicionar nova ação
+            st.subheader("Adicionar Nova Ação:")
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                nova_acao = st.text_area("Descrição da ação", key=f"nova_acao_{fator}")
+            
+            with col2:
+                st.write("&nbsp;")  # Espaçamento
+                adicionar = st.button("Adicionar", key=f"add_{fator}")
+                
+                if adicionar and nova_acao.strip():
+                    # Criar nova linha para o DataFrame
+                    nova_linha = {
+                        "Fator Psicossocial": fator,
+                        "Nível de Risco": nivel_risco,
+                        "Média": media,
+                        "Sugestão de Ação": nova_acao,
+                        "Responsável": "",
+                        "Prazo": "",
+                        "Status": "Não iniciada",
+                        "Personalizada": True  # Marcar como ação personalizada
+                    }
+                    
+                    # Adicionar ao DataFrame
+                    st.session_state.plano_acao_personalizado = pd.concat([
+                        st.session_state.plano_acao_personalizado, 
+                        pd.DataFrame([nova_linha])
+                    ], ignore_index=True)
+                    
+                    # Limpar campo de texto
+                    st.session_state[f"nova_acao_{fator}"] = ""
+                    st.experimental_rerun()
+            
+            # Mostrar ações existentes para editar
+            st.subheader("Ações Sugeridas:")
+            for j, (index, row) in enumerate(df_fator.iterrows()):
+                with st.expander(f"Ação {j+1}: {row['Sugestão de Ação'][:50]}...", expanded=False):
+                    col1, col2 = st.columns([3, 1])
+                    
+                    with col1:
+                        # Editor de texto para a ação
+                        acao_editada = st.text_area(
+                            "Descrição da ação", 
+                            row["Sugestão de Ação"], 
+                            key=f"acao_{fator}_{j}"
+                        )
+                        if acao_editada != row["Sugestão de Ação"]:
+                            st.session_state.plano_acao_personalizado.at[index, "Sugestão de Ação"] = acao_editada
+                    
+                    with col2:
+                        # Campos para responsável, prazo e status
+                        responsavel = st.text_input(
+                            "Responsável", 
+                            row.get("Responsável", ""), 
+                            key=f"resp_{fator}_{j}"
+                        )
+                        if responsavel != row.get("Responsável", ""):
+                            st.session_state.plano_acao_personalizado.at[index, "Responsável"] = responsavel
+                        
+                        # Campo de data para prazo
+                        try:
+                            data_padrao = None
+                            if row.get("Prazo") and row.get("Prazo") != "":
+                                try:
+                                    data_padrao = datetime.strptime(row.get("Prazo"), "%d/%m/%Y")
+                                except:
+                                    data_padrao = None
+                            
+                            prazo = st.date_input(
+                                "Prazo", 
+                                value=data_padrao,
+                                key=f"prazo_{fator}_{j}"
+                            )
+                            if prazo:
+                                st.session_state.plano_acao_personalizado.at[index, "Prazo"] = prazo.strftime("%d/%m/%Y")
+                        except Exception as e:
+                            st.warning(f"Erro ao processar data: {e}")
+                        
+                        # Seletor de status
+                        status = st.selectbox(
+                            "Status",
+                            options=["Não iniciada", "Em andamento", "Concluída", "Cancelada"],
+                            index=["Não iniciada", "Em andamento", "Concluída", "Cancelada"].index(row.get("Status", "Não iniciada")),
+                            key=f"status_{fator}_{j}"
+                        )
+                        if status != row.get("Status", "Não iniciada"):
+                            st.session_state.plano_acao_personalizado.at[index, "Status"] = status
+                        
+                        # Botão para remover (apenas para ações personalizadas)
+                        if row.get("Personalizada", False):
+                            if st.button("🗑️ Remover", key=f"del_{fator}_{j}"):
+                                st.session_state.plano_acao_personalizado = st.session_state.plano_acao_personalizado.drop(index)
+                                st.experimental_rerun()
+    
+    # Botão para exportar plano personalizado
+    if st.button("Exportar Plano de Ação Personalizado"):
+        # Gerar Excel com o plano personalizado
+        output = gerar_excel_plano_personalizado(st.session_state.plano_acao_personalizado)
+        if output:
+            st.success("Plano de Ação gerado com sucesso!")
+            st.download_button(
+                label="Baixar Plano de Ação Personalizado",
+                data=output,
+                file_name="plano_acao_personalizado.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
+# NOVA FUNÇÃO: Gerar excel do plano personalizado
+def gerar_excel_plano_personalizado(df_plano_personalizado):
+    output = io.BytesIO()
+    
+    try:
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            workbook = writer.book
+            
+            # Aba principal com o plano de ação
+            df_plano_personalizado = df_plano_personalizado.copy()
+            
+            # Remover coluna Personalizada antes de exportar
+            if "Personalizada" in df_plano_personalizado.columns:
+                df_plano_personalizado = df_plano_personalizado.drop(columns=["Personalizada"])
+                
+            df_plano_personalizado.to_excel(writer, sheet_name='Plano de Ação', index=False)
+            
+            # Formatar a aba
+            worksheet = writer.sheets['Plano de Ação']
+            
+            # Definir formatos
+            header_format = workbook.add_format({
+                'bold': True,
+                'text_wrap': True,
+                'valign': 'top',
+                'fg_color': '#D7E4BC',
+                'border': 1
+            })
+
+            risco_format = {
+                'Risco Muito Alto': workbook.add_format({'bg_color': '#FF6B6B', 'font_color': 'white'}),
+                'Risco Alto': workbook.add_format({'bg_color': '#FFA500'}),
+                'Risco Moderado': workbook.add_format({'bg_color': '#FFFF00'}),
+                'Risco Baixo': workbook.add_format({'bg_color': '#90EE90'}),
+                'Risco Muito Baixo': workbook.add_format({'bg_color': '#BB8FCE'})
+            }
+            
+            # Configurar largura das colunas
+            worksheet.set_column('A:A', 25)  # Fator Psicossocial
+            worksheet.set_column('B:B', 15)  # Nível de Risco
+            worksheet.set_column('C:C', 10)  # Média
+            worksheet.set_column('D:D', 50)  # Sugestão de Ação
+            worksheet.set_column('E:E', 15)  # Responsável
+            worksheet.set_column('F:F', 15)  # Prazo
+            worksheet.set_column('G:G', 15)  # Status
+            
+            # Adicionar cabeçalhos formatados
+            for col_num, value in enumerate(df_plano_personalizado.columns.values):
+                worksheet.write(0, col_num, value, header_format)
+            
+            # Aplicar formatação condicional baseada no nível de risco
+            for row_num, (_, row) in enumerate(df_plano_personalizado.iterrows(), 1):
+                nivel_risco = row["Nível de Risco"]
+                if nivel_risco in risco_format:
+                    worksheet.write(row_num, 1, nivel_risco, risco_format[nivel_risco])
+            
+            # Adicionar validação de dados para a coluna Status
+            status_options = ['Não iniciada', 'Em andamento', 'Concluída', 'Cancelada']
+            worksheet.data_validation('G2:G1000', {'validate': 'list',
+                                                'source': status_options,
+                                                'input_title': 'Selecione o status:',
+                                                'input_message': 'Escolha um status da lista'})
+            
+            # Adicionar filtros
+            worksheet.autofilter(0, 0, len(df_plano_personalizado), len(df_plano_personalizado.columns) - 1)
+            
+            # Congelar painel para manter cabeçalhos visíveis durante rolagem
+            worksheet.freeze_panes(1, 0)
+        
+        output.seek(0)
+        return output
+    
+    except Exception as e:
+        st.error(f"Erro ao gerar o arquivo Excel: {str(e)}")
+        return None
+
 # Verificar autenticação antes de mostrar o conteúdo
 if check_password():
     # Criar sistema de abas para melhor organização
@@ -894,8 +1248,19 @@ if check_password():
                     resultados = calcular_resultados(df_filtrado, df_perguntas_filtradas, fatores, colunas_perguntas)
                     df_resultados = pd.DataFrame(resultados)
                     
+                    # Armazenar no session_state para acesso em outras abas
+                    st.session_state.df_resultados = df_resultados
+                    st.session_state.df = df
+                    st.session_state.df_perguntas = df_perguntas
+                    st.session_state.colunas_filtro = colunas_filtro
+                    st.session_state.colunas_perguntas = colunas_perguntas
+                    st.session_state.fatores = fatores
+                    st.session_state.filtro_opcao = filtro_opcao
+                    st.session_state.filtro_valor = filtro_valor
+                    
                     # Gerar plano de ação
                     df_plano_acao = gerar_sugestoes_acoes(df_resultados)
+                    st.session_state.df_plano_acao = df_plano_acao
                     
                 except Exception as e:
                     st.error(f"Ocorreu um erro inesperado: {str(e)}")
@@ -904,119 +1269,47 @@ if check_password():
     
     # Segunda aba - Visualização de resultados
     with tabs[1]:
-        if uploaded_file is not None and df_resultados is not None:
-            st.header("Resultados da Avaliação")
+        if "df_resultados" in st.session_state and st.session_state.df_resultados is not None:
+            df_resultados = st.session_state.df_resultados
+            filtro_opcao = st.session_state.filtro_opcao
+            filtro_valor = st.session_state.filtro_valor
             
-            # Mostrar estatísticas gerais
-            st.write("### Resumo da Avaliação")
-            media_geral = df_resultados["Média"].mean()
-            st.metric(
-                label="Média Geral",
-                value=f"{media_geral:.2f}",
-                delta=f"{classificar_risco(media_geral)[0]}"
-            )
+            # Mostrar dashboard melhorado
+            criar_dashboard(df_resultados, filtro_opcao, filtro_valor)
             
             st.write("### Resultados Detalhados da Avaliação")
             st.dataframe(df_resultados)
             
-            # Criar gráfico de barras para visualização dos riscos
-            fig, ax = plt.subplots(figsize=(10, 6))
-            cores = [classificar_risco(media)[1] for media in df_resultados["Média"]]
-            bars = ax.barh(df_resultados["Fator Psicossocial"], df_resultados["Média"], color=cores)
-            
-            # Adicionar rótulos de dados nas barras
-            for i, bar in enumerate(bars):
-                ax.text(
-                    bar.get_width() + 0.1,
-                    bar.get_y() + bar.get_height()/2,
-                    f"{df_resultados['Média'].iloc[i]:.2f} ({df_resultados['Risco'].iloc[i].split()[0]} {df_resultados['Risco'].iloc[i].split()[1]})",
-                    va='center'
-                )
-            
-            # Melhorar o layout e aparência do gráfico
-            ax.set_xlabel("Média das Respostas")
-            ax.set_title(f"Classificação de Riscos Psicossociais ({filtro_opcao}: {filtro_valor})")
-            ax.grid(axis='x', linestyle='--', alpha=0.7)
-            ax.set_xlim(0, 5) # Define o limite dos eixos para escala de 1-5
-            
-            # Adicionar legenda de cores
-            from matplotlib.lines import Line2D
-            legend_elements = [
-                Line2D([0], [0], color='red', lw=4, label='Risco Muito Alto (≤1)'),
-                Line2D([0], [0], color='orange', lw=4, label='Risco Alto (1-2)'),
-                Line2D([0], [0], color='yellow', lw=4, label='Risco Moderado (2-3)'),
-                Line2D([0], [0], color='green', lw=4, label='Risco Baixo (3-4)'),
-                Line2D([0], [0], color='purple', lw=4, label='Risco Muito Baixo (>4)'),
-            ]
-            ax.legend(handles=legend_elements, loc='lower right')
-            plt.tight_layout()
-            st.pyplot(fig)
+            # Adicionar um botão para exportar os resultados detalhados
+            csv = df_resultados.to_csv(index=False)
+            st.download_button(
+                label="Baixar Resultados CSV",
+                data=csv,
+                file_name=f"resultados_{filtro_opcao}_{filtro_valor}.csv",
+                mime="text/csv",
+            )
     
     # Terceira aba - Plano de ação
     with tabs[2]:
-        if uploaded_file is not None and df_plano_acao is not None:
-            st.header("Plano de Ação Sugerido")
-            st.write("Com base nos resultados da avaliação, aqui estão sugestões de ações para seu PGR:")
-            
-            # Criar tabs para organizar a visualização do plano de ação
-            subtabs = st.tabs(["Todos os Fatores"] + list(df_plano_acao["Fator Psicossocial"].unique()))
-            
-            # Tab com todas as ações
-            with subtabs[0]:
-                # Adicionar filtros interativos
-                col1, col2 = st.columns(2)
-                with col1:
-                    niveis_risco = ["Todos"] + sorted(df_plano_acao["Nível de Risco"].unique().tolist(),
-                        key=lambda x: ["Risco Muito Alto", "Risco Alto", "Risco Moderado",
-                        "Risco Baixo", "Risco Muito Baixo"].index(x)
-                        if x in ["Risco Muito Alto", "Risco Alto", "Risco Moderado",
-                        "Risco Baixo", "Risco Muito Baixo"] else 999)
-                    filtro_risco = st.selectbox("Filtrar por nível de risco:", niveis_risco)
-                
-                # Aplicar filtros
-                df_filtrado = df_plano_acao
-                if filtro_risco != "Todos":
-                    df_filtrado = df_filtrado[df_filtrado["Nível de Risco"] == filtro_risco]
-                
-                # Mostrar o plano de ação filtrado
-                st.dataframe(
-                    df_filtrado[["Fator Psicossocial", "Nível de Risco", "Média", "Sugestão de Ação"]],
-                    use_container_width=True,
-                    height=400
-                )
-                
-                # Indicar o total de ações sugeridas
-                st.info(f"Total de {len(df_filtrado)} ações sugeridas")
-            
-            # Tabs para cada fator psicossocial
-            for i, fator in enumerate(df_plano_acao["Fator Psicossocial"].unique(), 1):
-                with subtabs[i]:
-                    df_fator = df_plano_acao[df_plano_acao["Fator Psicossocial"] == fator]
-                    
-                    # Mostrar média e nível de risco
-                    nivel_risco = df_fator["Nível de Risco"].iloc[0]
-                    media = df_fator["Média"].iloc[0]
-                    
-                    # Definir cor com base no nível de risco
-                    cor = {
-                        "Risco Muito Alto": "red",
-                        "Risco Alto": "orange",
-                        "Risco Moderado": "yellow",
-                        "Risco Baixo": "green",
-                        "Risco Muito Baixo": "purple"
-                    }.get(nivel_risco, "gray")
-                    
-                    st.markdown(f"**Média:** {media} - **Nível de Risco:** :{cor}[{nivel_risco}]")
-                    
-                    # Mostrar as ações sugeridas
-                    st.subheader("Ações Sugeridas:")
-                    for i, row in df_fator.iterrows():
-                        st.markdown(f"- {row['Sugestão de Ação']}")
+        if "df_plano_acao" in st.session_state and st.session_state.df_plano_acao is not None:
+            # Mostrar o plano de ação editável (nova funcionalidade)
+            plano_acao_editavel(st.session_state.df_plano_acao)
     
     # Quarta aba - Relatórios
     with tabs[3]:
-        if uploaded_file is not None and df_resultados is not None and df_plano_acao is not None:
+        if "df_resultados" in st.session_state and st.session_state.df_resultados is not None:
             st.header("Download de Relatórios")
+            
+            # Recuperar dados do session_state
+            df = st.session_state.df
+            df_perguntas = st.session_state.df_perguntas
+            colunas_filtro = st.session_state.colunas_filtro
+            colunas_perguntas = st.session_state.colunas_perguntas
+            fatores = st.session_state.fatores
+            df_resultados = st.session_state.df_resultados
+            df_plano_acao = st.session_state.df_plano_acao
+            filtro_opcao = st.session_state.filtro_opcao
+            filtro_valor = st.session_state.filtro_valor
             
             col1, col2 = st.columns(2)
             
@@ -1053,6 +1346,93 @@ if check_password():
                     mime="application/pdf",
                     help="Baixe um PDF específico com o plano de ação sugerido, incluindo campos para preenchimento de responsáveis e prazos."
                 )
+            
+            # Adicionar opção para baixar o Template HSE-IT
+            with st.expander("Baixar Template para Coleta de Dados HSE-IT"):
+                st.write("""
+                Baixe o template para utilizar na coleta de dados do questionário HSE-IT.
+                Este arquivo Excel contém a estrutura adequada para ser utilizada com este sistema.
+                """)
+                
+                # Função para gerar um template básico
+                def gerar_template_excel():
+                    output = io.BytesIO()
+                    
+                    # Criar DataFrame com a estrutura esperada
+                    colunas = [
+                        "Setor", "Cargo", "Tempo_Empresa", "Genero", "Faixa_Etaria", "Escolaridade", "Regime_Trabalho",
+                    ]
+                    
+                    # Adicionar colunas de perguntas
+                    for i in range(1, 36):
+                        colunas.append(f"{i}. Pergunta sobre fator psicossocial")
+                    
+                    df_template = pd.DataFrame(columns=colunas)
+                    
+                    # Adicionar linha de exemplo
+                    df_template.loc[0] = ["TI", "Analista", "1-3 anos", "Masculino", "25-35", "Superior", "CLT"] + [3] * 35
+                    
+                    # Exportar para Excel
+                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                        df_template.to_excel(writer, sheet_name="Questionário HSE-IT", index=False)
+                        
+                        # Criar folha de instruções
+                        workbook = writer.book
+                        worksheet_instrucoes = workbook.add_worksheet("Instruções")
+                        
+                        # Adicionar instruções
+                        instrucoes = [
+                            "Template para Questionário HSE-IT",
+                            "",
+                            "Instruções de uso:",
+                            "",
+                            "1. As primeiras 7 colunas contêm informações demográficas",
+                            "2. As demais colunas (35) contêm as perguntas do questionário HSE-IT",
+                            "3. As respostas devem ser preenchidas com valores de 1 a 5, onde:",
+                            "   - 1: Nunca / Discordo totalmente",
+                            "   - 2: Raramente / Discordo parcialmente",
+                            "   - 3: Às vezes / Nem concordo nem discordo",
+                            "   - 4: Frequentemente / Concordo parcialmente",
+                            "   - 5: Sempre / Concordo totalmente",
+                            "",
+                            "4. É importante manter a estrutura exata deste template",
+                            "5. As perguntas devem começar com o número e um ponto (ex: '1. Pergunta...')",
+                            "",
+                            "Para mais informações, consulte a documentação ou entre em contato."
+                        ]
+                        
+                        # Escrever instruções
+                        for i, texto in enumerate(instrucoes):
+                            worksheet_instrucoes.write(i, 0, texto)
+                    
+                    output.seek(0)
+                    return output
+                
+                # Botão para download do template
+                st.download_button(
+                    label="Baixar Template Excel",
+                    data=gerar_template_excel(),
+                    file_name="template_hse_it.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+                
+            # Adicionar informações sobre como usar os relatórios
+            with st.expander("Como usar os relatórios"):
+                st.write("""
+                ### Relatório Excel Completo
+                Contém múltiplas abas com análises detalhadas:
+                - **Empresa Toda**: Visão geral dos fatores psicossociais
+                - **Plano de Ação**: Sugestões de ações para cada fator de risco
+                - **Por Setor/Cargo/etc.**: Análises segmentadas por filtros demográficos
+                - **Gráfico de Riscos**: Visualização gráfica dos fatores
+                
+                ### Relatório PDF
+                Versão simplificada com os principais resultados, ideal para compartilhamento.
+                
+                ### Plano de Ação PDF
+                Documento específico com as ações sugeridas, contendo espaços para preenchimento
+                manual de responsáveis e prazos. Ideal para discussão em reuniões de planejamento.
+                """)
+                
 else:
     st.stop()  # Não mostrar nada abaixo deste ponto se a autenticação falhar
-
