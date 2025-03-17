@@ -61,9 +61,17 @@ def gerar_pdf(df_resultados):
         pdf.cell(0, 8, "Risco Baixo: 3 < Media <= 4", ln=True)
         pdf.cell(0, 8, "Risco Muito Baixo: Media > 4", ln=True)
         
-        output = io.BytesIO()
-        pdf.output(output)
-        output.seek(0)
+        # Corrigindo o problema de BytesIO
+        temp_file = "temp_report.pdf"
+        pdf.output(temp_file)
+        
+        with open(temp_file, "rb") as file:
+            output = io.BytesIO(file.read())
+        
+        import os
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
+            
         return output
     except Exception as e:
         st.error(f"Erro ao gerar o PDF: {str(e)}")
@@ -98,7 +106,13 @@ if uploaded_file is not None:
             st.stop()
         
         # Separar os dados de filtro e as perguntas
-        df_filtros = df.iloc[:, :7]  # Colunas com Setor, Cargo, etc.
+        # Excluir a coluna de data/hora se existir
+        colunas_filtro = list(df.columns[:7])
+        if "Carimbo de data/hora" in colunas_filtro:
+            colunas_filtro.remove("Carimbo de data/hora")
+        
+        # Definir as colunas de filtro corretas
+        df_filtros = df[colunas_filtro]
         
         # Garantir que as colunas das perguntas são corretamente identificadas
         colunas_perguntas = [col for col in df.columns if str(col).strip() and str(col).strip()[0].isdigit()]
@@ -133,10 +147,12 @@ if uploaded_file is not None:
         # Mostrar informações básicas sobre os dados
         st.write(f"**Dados carregados com sucesso!** Total de {len(df)} respostas.")
         
-        # Criar opções de filtro
+        # Criar opções de filtro (removendo a opção de data/hora)
+        opcoes_filtro = ["Empresa Toda"] + [col for col in df_filtros.columns if col != "Carimbo de data/hora"]
+        
         col1, col2 = st.columns(2)
         with col1:
-            filtro_opcao = st.selectbox("Filtrar por", ["Empresa Toda"] + list(df_filtros.columns))
+            filtro_opcao = st.selectbox("Filtrar por", opcoes_filtro)
         
         filtro_valor = "Geral"
         df_filtrado = df
@@ -147,9 +163,13 @@ if uploaded_file is not None:
                 if len(valores_unicos) > 0:
                     filtro_valor = st.selectbox(f"Escolha um {filtro_opcao}", valores_unicos)
                     df_filtrado = df[df_filtros[filtro_opcao] == filtro_valor]
-                    df_perguntas = df_perguntas[df_filtros[filtro_opcao] == filtro_valor]
+                    # Filtrar as perguntas de acordo com o filtro
+                    indices_filtrados = df_filtros.index[df_filtros[filtro_opcao] == filtro_valor].tolist()
+                    df_perguntas_filtradas = df_perguntas.loc[indices_filtrados]
                 else:
                     st.warning(f"Não há valores únicos para o filtro '{filtro_opcao}'.")
+        else:
+            df_perguntas_filtradas = df_perguntas
         
         # Verificar se há dados após a filtragem
         if df_filtrado.empty:
@@ -158,6 +178,9 @@ if uploaded_file is not None:
         
         resultados = []
         cores = []
+        
+        # Número total de respostas após filtragem
+        num_total_respostas = len(df_perguntas_filtradas)
         
         for fator, perguntas in fatores.items():
             # Converter números de pergunta para índices de coluna (se possível)
@@ -170,7 +193,7 @@ if uploaded_file is not None:
             
             if indices_validos:
                 # Calcular média diretamente de todas as respostas para este fator
-                valores = df_perguntas[indices_validos].values.flatten()
+                valores = df_perguntas_filtradas[indices_validos].values.flatten()
                 valores = valores[~pd.isna(valores)]  # Remove NaN
                 
                 if len(valores) > 0:
@@ -180,7 +203,7 @@ if uploaded_file is not None:
                         "Fator Psicossocial": fator, 
                         "Média": round(media, 2), 
                         "Risco": risco,
-                        "Número de Respostas": len(valores)
+                        "Número de Respostas": num_total_respostas  # Corrigido para mostrar o número real de respostas
                     })
                     cores.append(cor)
         
