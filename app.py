@@ -53,9 +53,14 @@ if uploaded_file is not None:
     # Separar os dados de filtro e as perguntas
     df_filtros = df.iloc[:, :7]  # Colunas com Setor, Cargo, etc.
     
-    # Identificar colunas das perguntas (começam com números de 1 a 35)
-    colunas_perguntas = [col for col in df.columns if col.split(".")[0].isdigit()]
-    df_perguntas = df[colunas_perguntas]  # Seleciona apenas essas colunas
+    # Garantir que as colunas das perguntas são corretamente identificadas
+    colunas_perguntas = [col for col in df.columns if col.strip()[0].isdigit()]
+    df_perguntas = df[colunas_perguntas]  # Agora contém apenas as perguntas do HSE-IT
+    
+    # Verificar se há perguntas no dataframe antes de continuar
+    if df_perguntas.empty:
+        st.error("Erro: Nenhuma pergunta válida foi encontrada no arquivo enviado. Verifique se o formato está correto.")
+        st.stop()
     
     fatores = {
         "Gestão organizacional": [15, 19, 25, 26, 28, 32],
@@ -78,9 +83,11 @@ if uploaded_file is not None:
     
     resultados = []
     for fator, perguntas in fatores.items():
-        media = df_perguntas.iloc[:, [p-1 for p in perguntas]].mean().mean()
-        risco = classificar_risco(media)
-        resultados.append({"Fator Psicossocial": fator, "Média": round(media, 2), "Risco": risco})
+        perguntas_validas = [p-1 for p in perguntas if p-1 < len(df_perguntas.columns)]
+        if perguntas_validas:
+            media = df_perguntas.iloc[:, perguntas_validas].mean().mean()
+            risco = classificar_risco(media)
+            resultados.append({"Fator Psicossocial": fator, "Média": round(media, 2), "Risco": risco})
     
     df_resultados = pd.DataFrame(resultados)
     st.write("### Resultados da Avaliação")
