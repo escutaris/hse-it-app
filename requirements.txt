@@ -4,3 +4,4 @@ matplotlib
 fpdf
 xlsxwriter
 openpyxl
+plotly
