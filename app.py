@@ -52,7 +52,10 @@ if uploaded_file is not None:
     
     # Separar os dados de filtro e as perguntas
     df_filtros = df.iloc[:, :7]  # Colunas com Setor, Cargo, etc.
-    df_perguntas = df.iloc[:, 7:]  # Colunas com as respostas das perguntas
+    
+    # Identificar colunas das perguntas (começam com números de 1 a 35)
+    colunas_perguntas = [col for col in df.columns if col.split(".")[0].isdigit()]
+    df_perguntas = df[colunas_perguntas]  # Seleciona apenas essas colunas
     
     fatores = {
         "Gestão organizacional": [15, 19, 25, 26, 28, 32],
@@ -75,7 +78,7 @@ if uploaded_file is not None:
     
     resultados = []
     for fator, perguntas in fatores.items():
-        media = df_perguntas.iloc[:, perguntas].mean().mean()
+        media = df_perguntas.iloc[:, [p-1 for p in perguntas]].mean().mean()
         risco = classificar_risco(media)
         resultados.append({"Fator Psicossocial": fator, "Média": round(media, 2), "Risco": risco})
     
