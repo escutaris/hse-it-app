@@ -1,0 +1,53 @@
+/* Cores e estilos para a identidade visual da Escutaris */
+:root {
+    --primary-color: #5A713D;       /* Verde oliva da Escutaris */
+    --secondary-color: #BC582C;     /* Laranja terracota para destaque */
+    --accent-color: #DEB887;        /* Tom bege para elementos secundários */
+    --text-color: #333333;          /* Cinza escuro para textos */
+    --background-color: #F5F7F0;    /* Fundo levemente esverdeado */
+    --card-background: #FFFFFF;     /* Branco para cartões */
+    --success-color: #5A713D;       /* Verde da marca para sucesso */
+    --warning-color: #DEB887;       /* Bege para alertas */
+    --danger-color: #BC582C;        /* Terracota para erros/perigos */
+}
+
+/* Estilo para o corpo do aplicativo */
+.reportview-container {
+    background-color: var(--background-color);
+    color: var(--text-color);
+}
+
+/* Estilo para cabeçalhos */
+h1, h2, h3 {
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+/* Estilo para cartões/containers */
+.stCard {
+    background-color: var(--card-background);
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+/* Estilo para botões */
+.stButton > button {
+    background-color: var(--primary-color);
+    color: white;
+    border-radius: 5px;
+}
+
+/* Estilo para métricas */
+.stMetric {
+    background-color: var(--card-background);
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+/* Personalização da barra lateral */
+.sidebar .sidebar-content {
+    background-color: var(--card-background);
+}
