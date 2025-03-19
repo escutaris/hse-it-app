@@ -1,37 +1,37 @@
 import streamlit as st
-import pyrebase
-import os
+import json
 import firebase_admin
 from firebase_admin import credentials, auth
-from dotenv import load_dotenv
-
-# Carregar variáveis de ambiente
-load_dotenv()
-
-# Configuração do Firebase
-firebaseConfig = {
-  "apiKey": os.getenv("FIREBASE_API_KEY"),
-  "authDomain": os.getenv("FIREBASE_AUTH_DOMAIN"),
-  "projectId": os.getenv("FIREBASE_PROJECT_ID"),
-  "storageBucket": os.getenv("FIREBASE_STORAGE_BUCKET"),
-  "messagingSenderId": os.getenv("FIREBASE_MESSAGING_SENDER_ID"),
-  "appId": os.getenv("FIREBASE_APP_ID"),
-  "measurementId": os.getenv("FIREBASE_MEASUREMENT_ID"),
-  "databaseURL": os.getenv("FIREBASE_DATABASE_URL", "")
-}
+import pyrebase
 
 # Inicializar Firebase Admin SDK (apenas uma vez)
 if not firebase_admin._apps:
     try:
-        # Tentar carregar o arquivo de credenciais
-        cred = credentials.Certificate("serviceAccountKey.json")
+        # Obter credenciais do Streamlit Secrets
+        service_account_info = st.secrets["service_account"]
+        
+        # Convertendo o dicionário para o formato esperado pelo Firebase Admin
+        cred = credentials.Certificate(service_account_info)
         firebase_admin.initialize_app(cred)
+        
+        print("Firebase Admin SDK inicializado com sucesso")
     except Exception as e:
         st.error(f"Erro ao inicializar Firebase Admin: {e}")
-        st.info("Verifique se o arquivo serviceAccountKey.json está na raiz do projeto")
+        print(f"Erro ao inicializar Firebase Admin: {e}")
 
-# Inicializar Firebase para autenticação client-side
-firebase = pyrebase.initialize_app(firebaseConfig)
+# Configuração do Firebase para autenticação client-side
+firebase_config = {
+    "apiKey": st.secrets["firebase"]["api_key"],
+    "authDomain": st.secrets["firebase"]["auth_domain"],
+    "projectId": st.secrets["firebase"]["project_id"],
+    "storageBucket": st.secrets["firebase"]["storage_bucket"],
+    "messagingSenderId": st.secrets["firebase"]["messaging_sender_id"],
+    "appId": st.secrets["firebase"]["app_id"],
+    "databaseURL": st.secrets["firebase"]["database_url"]
+}
+
+# Inicializar Pyrebase
+firebase = pyrebase.initialize_app(firebase_config)
 auth_firebase = firebase.auth()
 
 def verificar_senha():
@@ -39,14 +39,20 @@ def verificar_senha():
     if "user_authenticated" in st.session_state and st.session_state.user_authenticated:
         return True
 
-    # Adicionar logo/imagem
-    st.image("https://raw.githubusercontent.com/username/hse-app/main/logo.png", width=200)
+    # Título de login com logo
+    st.markdown(
+        """
+        <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #5A713D;">Escutaris HSE Analytics</h1>
+            <p style="color: #666; font-size: 18px;">Análise de Fatores Psicossociais no Trabalho</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
     
     # Formulário de login
     with st.form("login_form"):
-        st.title("Escutaris HSE Analytics")
-        st.markdown("Entre com suas credenciais para acessar o sistema")
-        
+        st.markdown("<h3>Login</h3>", unsafe_allow_html=True)
         email = st.text_input("Email")
         senha = st.text_input("Senha", type="password")
         
@@ -64,6 +70,7 @@ def verificar_senha():
             user = auth_firebase.sign_in_with_email_and_password(email, senha)
             st.session_state.user_authenticated = True
             st.session_state.user_info = user
+            st.success("Login realizado com sucesso!")
             return True
         except Exception as e:
             st.error("Email ou senha incorretos. Por favor, tente novamente.")
@@ -74,6 +81,20 @@ def verificar_senha():
     if demo_mode:
         st.session_state.user_authenticated = True
         st.session_state.demo_mode = True
+        st.warning("Você está usando o modo de demonstração. Alguns recursos podem estar limitados.")
         return True
+    
+    # Informações de rodapé
+    st.markdown(
+        """
+        <div style="position: fixed; bottom: 20px; text-align: center; width: 100%;">
+            <p style="color: #666; font-size: 12px;">
+                © 2023 Escutaris | Para acesso, entre em contato: 
+                <a href="mailto:contato@escutaris.com.br">contato@escutaris.com.br</a>
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
         
     return False
