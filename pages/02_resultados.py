@@ -105,15 +105,25 @@ aplicar_estilo_escutaris()
 # Título da página
 st.title("Resultados da Avaliação HSE-IT")
 
-# Verificar se há dados para exibir
-if "df_resultados" not in st.session_state or st.session_state.df_resultados is None:
+# Verificar se há dados para exibir - CORRIGIDO: Uso seguro de session_state
+if not st.session_state.get("df_resultados") is not None:
     st.warning("Nenhum dado carregado ainda. Por favor, faça upload de um arquivo na página 'Upload de Dados'.")
     st.stop()
 
-# Recuperar dados da sessão
-df_resultados = st.session_state.df_resultados
-filtro_opcao = st.session_state.get("filtro_opcao", "Empresa Toda")
-filtro_valor = st.session_state.get("filtro_valor", "Geral")
+# Recuperar dados da sessão de forma segura - CORRIGIDO
+try:
+    df_resultados = st.session_state.get("df_resultados")
+    filtro_opcao = st.session_state.get("filtro_opcao", "Empresa Toda")
+    filtro_valor = st.session_state.get("filtro_valor", "Geral")
+    
+    # Garantir que df_resultados não é None
+    if df_resultados is None:
+        st.warning("Resultados não disponíveis. Por favor, carregue seus dados na página 'Upload de Dados'.")
+        st.stop()
+except Exception as e:
+    st.error(f"Erro ao recuperar dados da sessão: {str(e)}")
+    st.info("Por favor, retorne à página de upload e carregue seus dados novamente.")
+    st.stop()
 
 # Barra lateral para filtros adicionais
 with st.sidebar:
@@ -127,11 +137,11 @@ with st.sidebar:
     
     st.divider()
     
-    # Adicionar filtros demográficos
-    if "df" in st.session_state and "colunas_filtro" in st.session_state:
-        df = st.session_state.df
-        colunas_filtro = st.session_state.colunas_filtro
-        
+    # Adicionar filtros demográficos - CORRIGIDO: Verificação segura
+    df = st.session_state.get("df")
+    colunas_filtro = st.session_state.get("colunas_filtro")
+    
+    if df is not None and colunas_filtro is not None:
         st.subheader("Filtrar Resultados")
         
         # Criar seletores para cada coluna de filtro
@@ -145,48 +155,59 @@ with st.sidebar:
             valor_selecionado = st.selectbox(f"Selecione {filtro_selecionado}:", valores_filtro)
             
             if st.button("Aplicar Filtro"):
-                # Atualizar dados com base no filtro
-                indices_filtrados = df.index[df[filtro_selecionado] == valor_selecionado].tolist()
-                df_perguntas_filtradas = st.session_state.df_perguntas.loc[indices_filtrados]
-                
-                # Importar função necessária
-                from utils.processamento import calcular_resultados_dimensoes
-                
-                # Calcular novos resultados
-                resultados_filtrados = calcular_resultados_dimensoes(
-                    df[df[filtro_selecionado] == valor_selecionado],
-                    df_perguntas_filtradas,
-                    st.session_state.colunas_perguntas
-                )
-                
-                if resultados_filtrados:
-                    df_resultados = pd.DataFrame(resultados_filtrados)
-                    st.session_state.df_resultados_filtrados = df_resultados
-                    st.session_state.filtro_aplicado = True
-                    st.session_state.filtro_opcao = filtro_selecionado
-                    st.session_state.filtro_valor = valor_selecionado
-                    st.success(f"Filtro aplicado: {filtro_selecionado} = {valor_selecionado}")
-                    st.experimental_rerun()
+                try:
+                    # Atualizar dados com base no filtro
+                    df_perguntas = st.session_state.get("df_perguntas")
+                    colunas_perguntas = st.session_state.get("colunas_perguntas")
+                    
+                    if None in [df_perguntas, colunas_perguntas]:
+                        st.error("Dados necessários para filtragem não estão disponíveis.")
+                    else:
+                        indices_filtrados = df.index[df[filtro_selecionado] == valor_selecionado].tolist()
+                        df_perguntas_filtradas = df_perguntas.loc[indices_filtrados]
+                        
+                        # Importar função necessária
+                        from utils.processamento import calcular_resultados_dimensoes
+                        
+                        # Calcular novos resultados
+                        resultados_filtrados = calcular_resultados_dimensoes(
+                            df[df[filtro_selecionado] == valor_selecionado],
+                            df_perguntas_filtradas,
+                            colunas_perguntas
+                        )
+                        
+                        if resultados_filtrados:
+                            df_resultados = pd.DataFrame(resultados_filtrados)
+                            st.session_state["df_resultados_filtrados"] = df_resultados
+                            st.session_state["filtro_aplicado"] = True
+                            st.session_state["filtro_opcao"] = filtro_selecionado
+                            st.session_state["filtro_valor"] = valor_selecionado
+                            st.success(f"Filtro aplicado: {filtro_selecionado} = {valor_selecionado}")
+                            st.experimental_rerun()
+                except Exception as e:
+                    st.error(f"Erro ao aplicar filtro: {str(e)}")
         
         # Botão para limpar filtros
-        if "filtro_aplicado" in st.session_state and st.session_state.filtro_aplicado:
+        if st.session_state.get("filtro_aplicado", False):
             if st.button("Limpar Filtros"):
-                if "df_resultados_original" in st.session_state:
-                    st.session_state.df_resultados = st.session_state.df_resultados_original
-                    del st.session_state.filtro_aplicado
-                    st.session_state.filtro_opcao = "Empresa Toda"
-                    st.session_state.filtro_valor = "Geral"
+                if st.session_state.get("df_resultados_original") is not None:
+                    st.session_state["df_resultados"] = st.session_state["df_resultados_original"].copy()
+                    st.session_state["filtro_aplicado"] = False
+                    st.session_state["filtro_opcao"] = "Empresa Toda"
+                    st.session_state["filtro_valor"] = "Geral"
+                    if "df_resultados_filtrados" in st.session_state:
+                        del st.session_state["df_resultados_filtrados"]
                     st.experimental_rerun()
 
 # Se for a primeira vez carregando a página, salvar os resultados originais
 if "df_resultados_original" not in st.session_state:
-    st.session_state.df_resultados_original = df_resultados.copy()
+    st.session_state["df_resultados_original"] = df_resultados.copy()
 
 # Se houver resultados filtrados, usar esses
-if "filtro_aplicado" in st.session_state and "df_resultados_filtrados" in st.session_state:
-    df_resultados = st.session_state.df_resultados_filtrados
-    filtro_opcao = st.session_state.filtro_opcao
-    filtro_valor = st.session_state.filtro_valor
+if st.session_state.get("filtro_aplicado", False) and st.session_state.get("df_resultados_filtrados") is not None:
+    df_resultados = st.session_state["df_resultados_filtrados"]
+    filtro_opcao = st.session_state.get("filtro_opcao", "Empresa Toda")
+    filtro_valor = st.session_state.get("filtro_valor", "Geral")
 
 # Função para criar o dashboard principal
 def criar_dashboard(df_resultados, filtro_opcao, filtro_valor):
@@ -195,50 +216,63 @@ def criar_dashboard(df_resultados, filtro_opcao, filtro_valor):
     # Layout com 3 métricas principais
     col1, col2, col3 = st.columns(3)
     
-    # Calcular métricas
-    media_geral = df_resultados["Média"].mean()
-    risco_geral, cor_geral = classificar_risco(media_geral)
-    dimensao_mais_critica = df_resultados.loc[df_resultados["Média"].idxmin()]
-    dimensao_melhor = df_resultados.loc[df_resultados["Média"].idxmax()]
-    
-    # Exibir métricas com formatação visual melhorada
-    with col1:
-        st.metric(
-            label="Média Geral",
-            value=f"{media_geral:.2f}",
-            delta=risco_geral.split()[0],
-            delta_color="inverse"
-        )
-        st.markdown(f"<div style='text-align: center; color: {cor_geral};'><b>{risco_geral}</b></div>", unsafe_allow_html=True)
-    
-    with col2:
-        st.metric(
-            label="Dimensão Mais Crítica",
-            value=dimensao_mais_critica["Dimensão"],
-            delta=f"{dimensao_mais_critica['Média']:.2f}",
-            delta_color="off"
-        )
-        risco, cor = classificar_risco(dimensao_mais_critica["Média"])
-        st.markdown(f"<div style='text-align: center; color: {cor};'><b>{risco}</b></div>", unsafe_allow_html=True)
-    
-    with col3:
-        st.metric(
-            label="Dimensão Melhor Avaliada",
-            value=dimensao_melhor["Dimensão"],
-            delta=f"{dimensao_melhor['Média']:.2f}",
-            delta_color="off"
-        )
-        risco, cor = classificar_risco(dimensao_melhor["Média"])
-        st.markdown(f"<div style='text-align: center; color: {cor};'><b>{risco}</b></div>", unsafe_allow_html=True)
+    # Calcular métricas de forma segura
+    try:
+        media_geral = df_resultados["Média"].mean()
+        risco_geral, cor_geral = classificar_risco(media_geral)
+        
+        if len(df_resultados) > 0:
+            dimensao_mais_critica = df_resultados.loc[df_resultados["Média"].idxmin()]
+            dimensao_melhor = df_resultados.loc[df_resultados["Média"].idxmax()]
+        else:
+            # Valores padrão se não houver dados
+            dimensao_mais_critica = {"Dimensão": "N/A", "Média": 0}
+            dimensao_melhor = {"Dimensão": "N/A", "Média": 0}
+        
+        # Exibir métricas com formatação visual melhorada
+        with col1:
+            st.metric(
+                label="Média Geral",
+                value=f"{media_geral:.2f}",
+                delta=risco_geral.split()[0],
+                delta_color="inverse"
+            )
+            st.markdown(f"<div style='text-align: center; color: {cor_geral};'><b>{risco_geral}</b></div>", unsafe_allow_html=True)
+        
+        with col2:
+            st.metric(
+                label="Dimensão Mais Crítica",
+                value=dimensao_mais_critica.get("Dimensão", "N/A"),
+                delta=f"{dimensao_mais_critica.get('Média', 0):.2f}",
+                delta_color="off"
+            )
+            risco, cor = classificar_risco(dimensao_mais_critica.get("Média", 0))
+            st.markdown(f"<div style='text-align: center; color: {cor};'><b>{risco}</b></div>", unsafe_allow_html=True)
+        
+        with col3:
+            st.metric(
+                label="Dimensão Melhor Avaliada",
+                value=dimensao_melhor.get("Dimensão", "N/A"),
+                delta=f"{dimensao_melhor.get('Média', 0):.2f}",
+                delta_color="off"
+            )
+            risco, cor = classificar_risco(dimensao_melhor.get("Média", 0))
+            st.markdown(f"<div style='text-align: center; color: {cor};'><b>{risco}</b></div>", unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"Erro ao calcular métricas: {str(e)}")
+        st.info("Verifique os dados carregados e tente novamente.")
     
     # Criar gráfico de barras para visualização dos riscos
-    fig = criar_grafico_barras(df_resultados)
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Adicionar gráfico de radar para visão geral das dimensões
-    st.subheader("Visão Geral das Dimensões")
-    fig_radar = criar_grafico_radar(df_resultados)
-    st.plotly_chart(fig_radar, use_container_width=True)
+    try:
+        fig = criar_grafico_barras(df_resultados)
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Adicionar gráfico de radar para visão geral das dimensões
+        st.subheader("Visão Geral das Dimensões")
+        fig_radar = criar_grafico_radar(df_resultados)
+        st.plotly_chart(fig_radar, use_container_width=True)
+    except Exception as e:
+        st.error(f"Erro ao criar gráficos: {str(e)}")
     
     return
 
@@ -256,10 +290,12 @@ def criar_grafico_barras(df_resultados):
         cores.append(cor)
     
     for _, row in df_sorted.iterrows():
+        # Acesso seguro para a descrição da dimensão
+        descricao = row.get("Descrição", "Sem descrição disponível")
         hover_texts.append(f"Dimensão: {row['Dimensão']}<br>" +
                           f"Média: {row['Média']:.2f}<br>" +
                           f"Classificação: {row['Risco']}<br>" +
-                          f"Descrição: {row['Descrição']}")
+                          f"Descrição: {descricao}")
     
     # Criar gráfico
     fig = go.Figure()
@@ -388,78 +424,107 @@ def mostrar_detalhes_dimensao(df_resultados):
     
     for i, dimensao in enumerate(dimensoes):
         with tabs[i]:
-            row = df_resultados[df_resultados["Dimensão"] == dimensao].iloc[0]
-            media = row["Média"]
-            risco = row["Risco"]
-            _, cor = classificar_risco(media)
-            descricao = row["Descrição"]
-            
-            # Layout de duas colunas
-            col1, col2 = st.columns([1, 2])
-            
-            with col1:
-                # Card com informações principais
-                st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.markdown(f"### {dimensao}")
-                st.markdown(f"**Média**: {media:.2f}")
-                st.markdown(f"**Nível de Risco**: <span style='color:{cor};'>{risco}</span>", unsafe_allow_html=True)
+            try:
+                row = df_resultados[df_resultados["Dimensão"] == dimensao].iloc[0]
+                media = row["Média"]
+                risco = row["Risco"]
+                _, cor = classificar_risco(media)
+                # Acesso seguro à descrição
+                descricao = row.get("Descrição", DESCRICOES_DIMENSOES.get(dimensao, "Sem descrição disponível"))
                 
-                # Adicionar medidor visual
-                fig = go.Figure(go.Indicator(
-                    mode = "gauge+number",
-                    value = media,
-                    domain = {'x': [0, 1], 'y': [0, 1]},
-                    gauge = {
-                        'axis': {'range': [0, 5], 'tickwidth': 1},
-                        'bar': {'color': cor},
-                        'steps': [
-                            {'range': [0, 1], 'color': 'red'},
-                            {'range': [1, 2], 'color': 'orange'},
-                            {'range': [2, 3], 'color': 'yellow'},
-                            {'range': [3, 4], 'color': 'lightgreen'},
-                            {'range': [4, 5], 'color': 'lightpurple'}
-                        ]
-                    }
-                ))
+                # Layout de duas colunas
+                col1, col2 = st.columns([1, 2])
                 
-                fig.update_layout(height=200, margin=dict(l=20, r=20, t=30, b=20))
-                st.plotly_chart(fig, use_container_width=True)
-                st.markdown('</div>', unsafe_allow_html=True)
-            
-            with col2:
-                # Card com descrição e questões
-                st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.markdown("### Descrição")
-                st.markdown(descricao)
+                with col1:
+                    # Card com informações principais
+                    st.markdown('<div class="card">', unsafe_allow_html=True)
+                    st.markdown(f"### {dimensao}")
+                    st.markdown(f"**Média**: {media:.2f}")
+                    st.markdown(f"**Nível de Risco**: <span style='color:{cor};'>{risco}</span>", unsafe_allow_html=True)
+                    
+                    # Adicionar medidor visual
+                    fig = go.Figure(go.Indicator(
+                        mode = "gauge+number",
+                        value = media,
+                        domain = {'x': [0, 1], 'y': [0, 1]},
+                        gauge = {
+                            'axis': {'range': [0, 5], 'tickwidth': 1},
+                            'bar': {'color': cor},
+                            'steps': [
+                                {'range': [0, 1], 'color': 'red'},
+                                {'range': [1, 2], 'color': 'orange'},
+                                {'range': [2, 3], 'color': 'yellow'},
+                                {'range': [3, 4], 'color': 'lightgreen'},
+                                {'range': [4, 5], 'color': 'lightpurple'}
+                            ]
+                        }
+                    ))
+                    
+                    fig.update_layout(height=200, margin=dict(l=20, r=20, t=30, b=20))
+                    st.plotly_chart(fig, use_container_width=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
                 
-                if "Questões" in row:
-                    st.markdown("### Questões relacionadas")
-                    questoes = eval(row["Questões"]) if isinstance(row["Questões"], str) else row["Questões"]
-                    for q in questoes:
-                        # Tentar buscar o texto da questão
-                        q_text = f"Questão {q}"
-                        for col in st.session_state.colunas_perguntas:
-                            if str(col).strip().startswith(str(q)):
-                                q_text = str(col).strip()
-                                break
-                        st.markdown(f"- **{q}**: {q_text}")
-                st.markdown('</div>', unsafe_allow_html=True)
-            
-            # Sugestões de ação
-            st.markdown("### Sugestões de Ação")
-            
-            if "df_plano_acao" in st.session_state:
-                sugestoes = st.session_state.df_plano_acao[
-                    st.session_state.df_plano_acao["Dimensão"] == dimensao
-                ]["Sugestão de Ação"].tolist()
+                with col2:
+                    # Card com descrição e questões
+                    st.markdown('<div class="card">', unsafe_allow_html=True)
+                    st.markdown("### Descrição")
+                    st.markdown(descricao)
+                    
+                    # Acesso seguro às questões
+                    if "Questões" in row:
+                        st.markdown("### Questões relacionadas")
+                        # Tratar diferentes formatos de questões
+                        questoes = None
+                        if isinstance(row["Questões"], str):
+                            try:
+                                questoes = eval(row["Questões"])
+                            except Exception:
+                                # Se falhar em eval, tentar outras abordagens
+                                try:
+                                    import ast
+                                    questoes = ast.literal_eval(row["Questões"])
+                                except Exception:
+                                    # Se ainda falhar, usar a string como está
+                                    questoes = [row["Questões"]]
+                        else:
+                            questoes = row["Questões"]
+                            
+                        # Garantir que questoes é iterável
+                        if questoes:
+                            for q in questoes:
+                                # Tentar buscar o texto da questão
+                                q_text = f"Questão {q}"
+                                colunas_perguntas = st.session_state.get("colunas_perguntas", [])
+                                for col in colunas_perguntas:
+                                    if str(col).strip().startswith(str(q)):
+                                        q_text = str(col).strip()
+                                        break
+                                st.markdown(f"- **{q}**: {q_text}")
+                    st.markdown('</div>', unsafe_allow_html=True)
                 
-                if sugestoes:
-                    for j, sugestao in enumerate(sugestoes):
-                        st.markdown(f"{j+1}. {sugestao}")
+                # Sugestões de ação
+                st.markdown("### Sugestões de Ação")
+                
+                # Acesso seguro às sugestões
+                df_plano_acao = st.session_state.get("df_plano_acao")
+                if df_plano_acao is not None:
+                    # Verificar se "Dimensão" está no DataFrame
+                    if "Dimensão" in df_plano_acao.columns:
+                        sugestoes = df_plano_acao[
+                            df_plano_acao["Dimensão"] == dimensao
+                        ]["Sugestão de Ação"].tolist()
+                        
+                        if sugestoes:
+                            for j, sugestao in enumerate(sugestoes):
+                                st.markdown(f"{j+1}. {sugestao}")
+                        else:
+                            st.info("Não há sugestões específicas para esta dimensão.")
+                    else:
+                        st.info("O formato do plano de ação não é compatível.")
                 else:
-                    st.info("Não há sugestões específicas para esta dimensão.")
-            else:
-                st.info("O plano de ação não está disponível. Visite a página 'Plano de Ação' para mais detalhes.")
+                    st.info("O plano de ação não está disponível. Visite a página 'Plano de Ação' para mais detalhes.")
+            except Exception as e:
+                st.error(f"Erro ao mostrar detalhes da dimensão {dimensao}: {str(e)}")
 
 # Função para criar análise demográfica
 def criar_analise_demografica(df, df_perguntas, colunas_perguntas):
@@ -467,7 +532,7 @@ def criar_analise_demografica(df, df_perguntas, colunas_perguntas):
     st.write("Explore os resultados por diferentes características demográficas como setor, cargo, gênero, etc.")
     
     # Obter colunas demográficas disponíveis
-    demograficas = [col for col in st.session_state.colunas_filtro if col != "Carimbo de data/hora"]
+    demograficas = [col for col in st.session_state.get("colunas_filtro", []) if col != "Carimbo de data/hora"]
     
     if not demograficas:
         st.warning("Não foram encontradas colunas demográficas nos dados.")
@@ -479,29 +544,32 @@ def criar_analise_demografica(df, df_perguntas, colunas_perguntas):
     # Criar função para análise demográfica
     def analisar_por_demografia(df, col_demo):
         resultados = []
-        valores_unicos = df[col_demo].dropna().unique()
-        
-        for valor in valores_unicos:
-            if pd.notna(valor):
-                df_filtrado = df[df[col_demo] == valor]
-                indices_filtrados = df.index[df[col_demo] == valor].tolist()
-                df_perguntas_filtradas = df_perguntas.loc[indices_filtrados]
-                
-                # Importar função necessária
-                from utils.processamento import calcular_resultados_dimensoes
-                
-                # Calcular resultados para este filtro
-                resultados_filtro = calcular_resultados_dimensoes(
-                    df_filtrado, 
-                    df_perguntas_filtradas, 
-                    colunas_perguntas
-                )
-                
-                # Adicionar valor do filtro
-                for res in resultados_filtro:
-                    res[col_demo] = valor
-                    resultados.append(res)
-        
+        try:
+            valores_unicos = df[col_demo].dropna().unique()
+            
+            for valor in valores_unicos:
+                if pd.notna(valor):
+                    df_filtrado = df[df[col_demo] == valor]
+                    indices_filtrados = df.index[df[col_demo] == valor].tolist()
+                    df_perguntas_filtradas = df_perguntas.loc[indices_filtrados]
+                    
+                    # Importar função necessária
+                    from utils.processamento import calcular_resultados_dimensoes
+                    
+                    # Calcular resultados para este filtro
+                    resultados_filtro = calcular_resultados_dimensoes(
+                        df_filtrado, 
+                        df_perguntas_filtradas, 
+                        colunas_perguntas
+                    )
+                    
+                    # Adicionar valor do filtro
+                    for res in resultados_filtro:
+                        res[col_demo] = valor
+                        resultados.append(res)
+        except Exception as e:
+            st.error(f"Erro ao analisar dados por {col_demo}: {str(e)}")
+            
         return pd.DataFrame(resultados) if resultados else None
     
     # Obter e mostrar resultados
@@ -514,167 +582,207 @@ def criar_analise_demografica(df, df_perguntas, colunas_perguntas):
         
         # Mostrar tabela pivotada
         st.subheader(f"Médias por Dimensão e {col_demo}")
-        df_pivot = df_demografico.pivot(index="Dimensão", columns=col_demo, values="Média")
-        
-        # Adicionar heatmap
-        st.write("Clique em uma célula para ver os detalhes:")
-        
-        # Style para o heatmap
-        cm = plt.cm.RdYlGn  # Escala de cores de vermelho a verde
-        df_styled = df_pivot.style.background_gradient(
-            cmap=cm, vmin=1, vmax=5, 
-            axis=None, subset=None
-        ).format("{:.2f}")
-        
-        st.dataframe(df_styled)
-        
-        # Criar tabs para diferentes visualizações
-        chart_tab, compare_tab = st.tabs(["Gráfico de Barras", "Comparação de Dimensões"])
-        
-        with chart_tab:
-            # Criar gráfico de barras agrupadas
-            fig = go.Figure()
+        try:
+            df_pivot = df_demografico.pivot(index="Dimensão", columns=col_demo, values="Média")
             
-            for col in df_pivot.columns:
-                fig.add_trace(go.Bar(
-                    x=df_pivot.index,
-                    y=df_pivot[col],
-                    name=str(col),
-                    text=[f"{v:.2f}" for v in df_pivot[col]],
-                    textposition="auto"
-                ))
+            # Adicionar heatmap
+            st.write("Clique em uma célula para ver os detalhes:")
             
-            fig.update_layout(
-                title=f"Comparação de Dimensões por {col_demo}",
-                xaxis_title="Dimensão",
-                yaxis_title="Média",
-                yaxis=dict(range=[0, 5]),
-                barmode="group",
-                height=500,
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font=dict(family="Helvetica Neue, Arial", color="#2E2F2F")
-            )
+            # Aplicar formatação de cores
+            def color_scale(val):
+                if pd.isna(val):
+                    return ""
+                    
+                if val <= 1:
+                    return f'background-color: #FF6B6B; color: white'
+                elif val <= 2:
+                    return f'background-color: #FFA500'
+                elif val <= 3:
+                    return f'background-color: #FFFF00'
+                elif val <= 4:
+                    return f'background-color: #90EE90'
+                else:
+                    return f'background-color: #BB8FCE'
             
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with compare_tab:
-            # Criar gráfico de radar para comparação
-            st.subheader(f"Comparação por {col_demo}")
+            # Aplicar o estilo
+            df_styled = df_pivot.style.applymap(color_scale).format("{:.2f}")
             
-            # Seleção de grupos para comparar
-            if len(valores_unicos) > 6:
-                grupos_para_comparar = st.multiselect(
-                    f"Selecione até 6 grupos de {col_demo} para comparar:",
-                    valores_unicos,
-                    default=list(valores_unicos)[:3] if len(valores_unicos) > 3 else list(valores_unicos)
-                )
-            else:
-                grupos_para_comparar = valores_unicos
+            st.dataframe(df_styled)
             
-            if grupos_para_comparar:
-                # Filtrar o dataframe pivotado
-                df_radar = df_pivot[grupos_para_comparar]
-                
-                # Criar gráfico de radar
-                fig = go.Figure()
-                
-                for grupo in grupos_para_comparar:
-                    fig.add_trace(go.Scatterpolar(
-                        r=df_radar[grupo].values,
-                        theta=df_radar.index,
-                        fill='toself',
-                        name=str(grupo)
-                    ))
-                
-                fig.update_layout(
-                    polar=dict(
-                        radialaxis=dict(
-                            visible=True,
-                            range=[0, 5]
+            # Criar tabs para diferentes visualizações
+            chart_tab, compare_tab = st.tabs(["Gráfico de Barras", "Comparação de Dimensões"])
+            
+            with chart_tab:
+                try:
+                    # Criar gráfico de barras agrupadas
+                    fig = go.Figure()
+                    
+                    for col in df_pivot.columns:
+                        fig.add_trace(go.Bar(
+                            x=df_pivot.index,
+                            y=df_pivot[col],
+                            name=str(col),
+                            text=[f"{v:.2f}" if not pd.isna(v) else "N/A" for v in df_pivot[col]],
+                            textposition="auto"
+                        ))
+                    
+                    fig.update_layout(
+                        title=f"Comparação de Dimensões por {col_demo}",
+                        xaxis_title="Dimensão",
+                        yaxis_title="Média",
+                        yaxis=dict(range=[0, 5]),
+                        barmode="group",
+                        height=500,
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        font=dict(family="Helvetica Neue, Arial", color="#2E2F2F")
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                except Exception as e:
+                    st.error(f"Erro ao criar gráfico de barras: {str(e)}")
+            
+            with compare_tab:
+                try:
+                    # Criar gráfico de radar para comparação
+                    st.subheader(f"Comparação por {col_demo}")
+                    
+                    # Seleção de grupos para comparar
+                    if len(valores_unicos) > 6:
+                        grupos_para_comparar = st.multiselect(
+                            f"Selecione até 6 grupos de {col_demo} para comparar:",
+                            valores_unicos,
+                            default=list(valores_unicos)[:3] if len(valores_unicos) > 3 else list(valores_unicos)
                         )
-                    ),
-                    showlegend=True,
-                    height=600
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info(f"Selecione pelo menos um grupo de {col_demo} para visualizar.")
-        
-        # Adicionar análise de diferenças significativas
-        st.subheader("Diferenças Significativas")
-        
-        # Calcular as maiores diferenças entre grupos
-        df_diff = df_pivot.max(axis=1) - df_pivot.min(axis=1)
-        df_diff = df_diff.sort_values(ascending=False)
-        
-        # Mostrar as dimensões com maiores diferenças
-        st.write("Dimensões com maiores variações entre grupos:")
-        
-        for dimensao, diff in df_diff.items():
-            max_grupo = df_pivot.loc[dimensao].idxmax()
-            min_grupo = df_pivot.loc[dimensao].idxmin()
-            max_valor = df_pivot.loc[dimensao, max_grupo]
-            min_valor = df_pivot.loc[dimensao, min_grupo]
+                    else:
+                        grupos_para_comparar = valores_unicos
+                    
+                    if grupos_para_comparar:
+                        # Filtrar o dataframe pivotado
+                        df_radar = df_pivot[grupos_para_comparar]
+                        
+                        # Criar gráfico de radar
+                        fig = go.Figure()
+                        
+                        for grupo in grupos_para_comparar:
+                            # Tratar valores NaN
+                            valores = df_radar[grupo].values
+                            valores = np.nan_to_num(valores, nan=0)  # Substituir NaN por 0
+                            
+                            fig.add_trace(go.Scatterpolar(
+                                r=valores,
+                                theta=df_radar.index,
+                                fill='toself',
+                                name=str(grupo)
+                            ))
+                        
+                        fig.update_layout(
+                            polar=dict(
+                                radialaxis=dict(
+                                    visible=True,
+                                    range=[0, 5]
+                                )
+                            ),
+                            showlegend=True,
+                            height=600
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info(f"Selecione pelo menos um grupo de {col_demo} para visualizar.")
+                except Exception as e:
+                    st.error(f"Erro ao criar gráfico de radar: {str(e)}")
             
-            if diff > 0.5:  # Apenas mostrar diferenças relevantes
-                st.markdown(f"**{dimensao}**: Diferença de {diff:.2f} pontos")
-                st.markdown(f"- Maior média: {max_valor:.2f} ({max_grupo})")
-                st.markdown(f"- Menor média: {min_valor:.2f} ({min_grupo})")
+            # Adicionar análise de diferenças significativas
+            st.subheader("Diferenças Significativas")
+            
+            try:
+                # Calcular as maiores diferenças entre grupos
+                df_diff = df_pivot.max(axis=1) - df_pivot.min(axis=1)
+                df_diff = df_diff.sort_values(ascending=False)
+                
+                # Mostrar as dimensões com maiores diferenças
+                st.write("Dimensões com maiores variações entre grupos:")
+                
+                for dimensao, diff in df_diff.items():
+                    if pd.isna(diff):
+                        continue
+                        
+                    max_grupo = df_pivot.loc[dimensao].idxmax()
+                    min_grupo = df_pivot.loc[dimensao].idxmin()
+                    max_valor = df_pivot.loc[dimensao, max_grupo]
+                    min_valor = df_pivot.loc[dimensao, min_grupo]
+                    
+                    if diff > 0.5:  # Apenas mostrar diferenças relevantes
+                        st.markdown(f"**{dimensao}**: Diferença de {diff:.2f} pontos")
+                        st.markdown(f"- Maior média: {max_valor:.2f} ({max_grupo})")
+                        st.markdown(f"- Menor média: {min_valor:.2f} ({min_grupo})")
+            except Exception as e:
+                st.error(f"Erro ao calcular diferenças significativas: {str(e)}")
+        except Exception as e:
+            st.error(f"Erro ao criar tabela pivotada: {str(e)}")
+            st.dataframe(df_demografico)
     else:
         st.warning(f"Não foi possível gerar análise para {col_demo}. Verifique se há dados suficientes.")
 
 # Renderizar a página com base no modo de visualização selecionado
-if view_mode == "Dashboard Resumido":
-    criar_dashboard(df_resultados, filtro_opcao, filtro_valor)
-    
-    # Adicionar botão para ver detalhes
-    if st.button("Ver Análise Detalhada"):
-        st.session_state.view_mode = "Análise Detalhada"
-        st.experimental_rerun()
+try:
+    if view_mode == "Dashboard Resumido":
+        criar_dashboard(df_resultados, filtro_opcao, filtro_valor)
+        
+        # Adicionar botão para ver detalhes
+        if st.button("Ver Análise Detalhada"):
+            st.session_state["view_mode"] = "Análise Detalhada"
+            st.experimental_rerun()
 
-elif view_mode == "Análise Detalhada":
-    # Mostrar dashboard resumido
-    criar_dashboard(df_resultados, filtro_opcao, filtro_valor)
-    
-    # Mostrar detalhes por dimensão
-    mostrar_detalhes_dimensao(df_resultados)
-    
-    # Botão para voltar ao dashboard
-    if st.button("Voltar ao Dashboard Resumido"):
-        st.session_state.view_mode = "Dashboard Resumido"
-        st.experimental_rerun()
+    elif view_mode == "Análise Detalhada":
+        # Mostrar dashboard resumido
+        criar_dashboard(df_resultados, filtro_opcao, filtro_valor)
+        
+        # Mostrar detalhes por dimensão
+        mostrar_detalhes_dimensao(df_resultados)
+        
+        # Botão para voltar ao dashboard
+        if st.button("Voltar ao Dashboard Resumido"):
+            st.session_state["view_mode"] = "Dashboard Resumido"
+            st.experimental_rerun()
 
-elif view_mode == "Análise Demográfica":
-    # Verificar se há dados demográficos
-    if "df" in st.session_state and "df_perguntas" in st.session_state:
-        criar_analise_demografica(
-            st.session_state.df, 
-            st.session_state.df_perguntas, 
-            st.session_state.colunas_perguntas
-        )
-    else:
-        st.error("Dados necessários para análise demográfica não estão disponíveis.")
-    
-    # Botão para voltar ao dashboard
-    if st.button("Voltar ao Dashboard Resumido"):
-        st.session_state.view_mode = "Dashboard Resumido"
-        st.experimental_rerun()
+    elif view_mode == "Análise Demográfica":
+        # Verificar se há dados demográficos - CORRIGIDO: Verificação segura
+        df = st.session_state.get("df")
+        df_perguntas = st.session_state.get("df_perguntas")
+        colunas_perguntas = st.session_state.get("colunas_perguntas")
+        
+        if None not in [df, df_perguntas, colunas_perguntas]:
+            criar_analise_demografica(df, df_perguntas, colunas_perguntas)
+        else:
+            st.error("Dados necessários para análise demográfica não estão disponíveis.")
+        
+        # Botão para voltar ao dashboard
+        if st.button("Voltar ao Dashboard Resumido"):
+            st.session_state["view_mode"] = "Dashboard Resumido"
+            st.experimental_rerun()
+except Exception as e:
+    st.error(f"Erro ao renderizar o modo de visualização '{view_mode}': {str(e)}")
+    import traceback
+    st.code(traceback.format_exc())
 
 # Salvar o modo de visualização na sessão
-st.session_state.view_mode = view_mode
+st.session_state["view_mode"] = view_mode
 
 # Exibir tabela de resultados detalhados (opcional, expandível)
 with st.expander("Tabela de Resultados Detalhados", expanded=False):
     st.dataframe(df_resultados)
     
     # Botão para download dos resultados
-    csv = df_resultados.to_csv(index=False)
-    st.download_button(
-        label="Baixar Resultados CSV",
-        data=csv,
-        file_name=f"resultados_{filtro_opcao}_{filtro_valor}.csv",
-        mime="text/csv",
-        help="Baixe os resultados para análise em outras ferramentas"
-    )
+    try:
+        csv = df_resultados.to_csv(index=False)
+        st.download_button(
+            label="Baixar Resultados CSV",
+            data=csv,
+            file_name=f"resultados_{filtro_opcao}_{filtro_valor}.csv",
+            mime="text/csv",
+            help="Baixe os resultados para análise em outras ferramentas"
+        )
+    except Exception as e:
+        st.error(f"Erro ao preparar download: {str(e)}")
