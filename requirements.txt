@@ -7,3 +7,4 @@ openpyxl
 plotly
 firebase-admin
 pyrebase4
+python-dotenv
