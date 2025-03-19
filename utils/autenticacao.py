@@ -3,7 +3,6 @@ import json
 from datetime import datetime, timedelta
 import firebase_admin
 from firebase_admin import credentials, auth
-import pyrebase
 from firebase_config import firebaseConfig
 
 # Inicializar Firebase Admin SDK (apenas uma vez)
@@ -24,14 +23,6 @@ if not firebase_admin._apps:
     except Exception as e:
         # Ativar modo de demonstração automaticamente em caso de erros
         st.session_state.demo_mode = True
-
-# Inicializar Pyrebase com a configuração importada
-try:
-    firebase = pyrebase.initialize_app(firebaseConfig)
-    auth_firebase = firebase.auth()
-except Exception as e:
-    # Modo silencioso de erro - irá permitir o modo de demonstração
-    pass
 
 def verificar_senha():
     """Retorna `True` se a senha estiver correta ou se estiver no modo de demonstração."""
@@ -71,7 +62,8 @@ def verificar_senha():
     if submitted:
         try:
             # Tente autenticar com Firebase
-            user = auth_firebase.sign_in_with_email_and_password(email, senha)
+            # Remova a autenticação do Pyrebase
+            user = auth.get_user_by_email(email)
             
             # Armazenar token e timestamp para sessão segura
             st.session_state.user_authenticated = True
