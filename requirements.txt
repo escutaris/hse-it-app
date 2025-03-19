@@ -6,6 +6,6 @@ xlsxwriter
 openpyxl
 plotly
 firebase-admin
-pyrebase4
+pyrebase4==4.7.1
 python-dotenv
 reportlab
