@@ -8,3 +8,4 @@ plotly
 firebase-admin
 pyrebase4
 python-dotenv
+reportlab==3.6.12
