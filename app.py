@@ -3,7 +3,7 @@ from utils.autenticacao import verificar_senha
 
 # Configuração da página
 st.set_page_config(
-    page_title="Avaliação de Fatores Psicossociais - HSE-IT",
+    page_title="Escutaris HSE Analytics",
     page_icon="📊",
     layout="wide"
 )
@@ -22,7 +22,7 @@ except Exception as e:
 def exibir_cabecalho():
     st.markdown("""
     <div style="background-color: #F5F7F0; padding: 1.5rem; border-radius: 10px; margin-bottom: 1.5rem; border-left: 8px solid #5A713D;">
-        <h1 style="color: #5A713D; margin-bottom: 0.5rem;">HSE-IT Analytics</h1>
+        <h1 style="color: #5A713D; margin-bottom: 0.5rem;">Escutaris HSE Analytics</h1>
         <p style="color: #BC582C; font-size: 1.2rem;">Avaliação de Fatores Psicossociais no Trabalho</p>
         <p style="font-size: 0.9rem;">Transformando ambientes de trabalho através de soluções personalizadas em saúde mental</p>
     </div>
@@ -35,7 +35,7 @@ if verificar_senha():
     
     # Conteúdo da página inicial
     st.write("""
-    ### Bem-vindo à Plataforma HSE-IT Analytics
+    ### Bem-vindo à Plataforma Escutaris HSE Analytics
     
     Esta plataforma permite analisar os fatores psicossociais no ambiente de trabalho usando a 
     metodologia HSE-IT (Health and Safety Executive - Indicator Tool).
@@ -84,10 +84,14 @@ if verificar_senha():
     st.markdown("""
     <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
         <p style="text-align: center; color: #666;">
-            HSE-IT Analytics by <a href="https://escutaris.com.br" style="color: #5A713D;">Escutaris</a> | © 2023
+            Escutaris HSE Analytics | © 2023 <a href="https://escutaris.com.br" style="color: #5A713D;">Escutaris</a>
         </p>
     </div>
     """, unsafe_allow_html=True)
+
+    # Se estiver em modo de demonstração, mostrar aviso
+    if "demo_mode" in st.session_state and st.session_state.demo_mode:
+        st.warning("Você está usando o modo de demonstração. Alguns recursos podem estar limitados.")
 
 else:
     st.stop()  # Não mostrar nada abaixo deste ponto se a autenticação falhar
