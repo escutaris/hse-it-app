@@ -134,4 +134,60 @@ def criar_grafico_barras(df_resultados):
         line=dict(color="Red", width=2, dash="dash")
     )
     
-    fig.ad
+    fig.add_shape(
+        type="line",
+        x0=2, y0=-0.5, x1=2, y1=len(df_resultados)-0.5,
+        line=dict(color="Orange", width=2, dash="dash")
+    )
+    
+    fig.add_shape(
+        type="line",
+        x0=3, y0=-0.5, x1=3, y1=len(df_resultados)-0.5,
+        line=dict(color="Yellow", width=2, dash="dash")
+    )
+    
+    fig.add_shape(
+        type="line",
+        x0=4, y0=-0.5, x1=4, y1=len(df_resultados)-0.5,
+        line=dict(color="Green", width=2, dash="dash")
+    )
+    
+    # Adicionar anotações para níveis de risco
+    fig.add_annotation(x=0.5, y=len(df_resultados), text="Risco Muito Alto", 
+                      showarrow=False, font=dict(color="red"))
+    fig.add_annotation(x=1.5, y=len(df_resultados), text="Risco Alto", 
+                      showarrow=False, font=dict(color="orange"))
+    fig.add_annotation(x=2.5, y=len(df_resultados), text="Risco Moderado", 
+                      showarrow=False, font=dict(color="black"))
+    fig.add_annotation(x=3.5, y=len(df_resultados), text="Risco Baixo", 
+                      showarrow=False, font=dict(color="green"))
+    fig.add_annotation(x=4.5, y=len(df_resultados), text="Risco Muito Baixo", 
+                      showarrow=False, font=dict(color="purple"))
+    
+    # Configurar layout
+    fig.update_layout(
+        title=f"Classificação de Riscos Psicossociais",
+        xaxis_title="Média (Escala 1-5)",
+        yaxis_title="Dimensão",
+        xaxis=dict(range=[0, 5]),
+        height=500,
+        margin=dict(l=20, r=20, t=50, b=80)
+    )
+    
+    return fig
+
+# Chamar a função do dashboard para exibir os resultados
+criar_dashboard(df_resultados, filtro_opcao, filtro_valor)
+
+# Exibir tabela de resultados detalhados
+st.subheader("Tabela de Resultados Detalhados")
+st.dataframe(df_resultados)
+
+# Adicionar botão para download dos resultados
+csv = df_resultados.to_csv(index=False)
+st.download_button(
+    label="Baixar Resultados CSV",
+    data=csv,
+    file_name=f"resultados_{filtro_opcao}_{filtro_valor}.csv",
+    mime="text/csv",
+)
