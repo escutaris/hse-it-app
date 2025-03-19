@@ -24,7 +24,7 @@ h1, h2, h3 {
 }
 
 /* Estilo para cartões/containers */
-.stCard {
+.stCard, .card, .info-card, .report-card {
     background-color: var(--card-background);
     border-radius: 10px;
     padding: 20px;
@@ -37,10 +37,18 @@ h1, h2, h3 {
     background-color: var(--primary-color);
     color: white;
     border-radius: 5px;
+    border: none;
+    padding: 0.5rem 1rem;
+    transition: all 0.3s ease;
+}
+
+.stButton > button:hover {
+    opacity: 0.9;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
 /* Estilo para métricas */
-.stMetric {
+div.css-1xarl3l.e16fv1kl1 {
     background-color: var(--card-background);
     padding: 15px;
     border-radius: 8px;
@@ -50,4 +58,71 @@ h1, h2, h3 {
 /* Personalização da barra lateral */
 .sidebar .sidebar-content {
     background-color: var(--card-background);
+}
+
+/* Estilo para tabelas */
+.dataframe {
+    border-collapse: collapse;
+    width: 100%;
+}
+.dataframe th {
+    background-color: var(--primary-color);
+    color: white;
+    text-align: left;
+    padding: 8px;
+}
+.dataframe td {
+    padding: 8px;
+    border-bottom: 1px solid #ddd;
+}
+.dataframe tr:nth-child(even) {
+    background-color: rgba(90, 113, 61, 0.1);
+}
+
+/* Estilo para expansores */
+.streamlit-expanderHeader {
+    background-color: rgba(90, 113, 61, 0.1);
+    border-radius: 5px;
+}
+.streamlit-expanderContent {
+    border-left: 1px solid var(--primary-color);
+    padding-left: 15px;
+}
+
+/* Estilo para barra de progresso */
+.stProgress > div > div > div > div {
+    background-color: var(--primary-color);
+}
+
+/* Status tags para o plano de ação */
+.status-not-started {
+    background-color: #f8d7da;
+    color: #721c24;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+}
+
+.status-in-progress {
+    background-color: #fff3cd;
+    color: #856404;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+}
+
+.status-completed {
+    background-color: #d4edda;
+    color: #155724;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+}
+
+.status-canceled {
+    background-color: #e2e3e5;
+    color: #383d41;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
 }
