@@ -1,0 +1,13 @@
+# Arquivos de configuração sensíveis
+serviceAccountKey.json
+.env
+
+# Arquivos Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ambiente virtual
+venv/
+env/
+.venv/
