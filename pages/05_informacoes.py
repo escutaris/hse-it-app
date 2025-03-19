@@ -1,19 +1,127 @@
 import streamlit as st
-import pandas as pd  # Adicionado import do pandas que estava faltando
+import pandas as pd
+import numpy as np
 from utils.constantes import DIMENSOES_HSE, DESCRICOES_DIMENSOES, QUESTOES_INVERTIDAS
+
+# Aplicar estilo consistente da Escutaris
+def aplicar_estilo_escutaris():
+    st.markdown("""
+    <style>
+    /* Cores principais */
+    :root {
+        --escutaris-verde: #5A713D;
+        --escutaris-cinza: #2E2F2F;
+        --escutaris-bege: #F5F0EB;
+        --escutaris-laranja: #FF5722;
+    }
+    
+    /* Títulos */
+    h1, h2, h3 {
+        color: var(--escutaris-verde) !important;
+        font-family: 'Helvetica Neue', Arial, sans-serif !important;
+    }
+    
+    /* Subtítulos */
+    h4, h5, h6 {
+        color: var(--escutaris-cinza) !important;
+        font-family: 'Helvetica Neue', Arial, sans-serif !important;
+    }
+    
+    /* Botões */
+    .stButton>button {
+        background-color: var(--escutaris-verde) !important;
+        color: white !important;
+        border-radius: 5px !important;
+        border: none !important;
+        padding: 0.5rem 1rem !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    .stButton>button:hover {
+        opacity: 0.9 !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
+    }
+    
+    /* Cards */
+    .info-card {
+        background-color: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+        border-left: 4px solid var(--escutaris-verde);
+    }
+    
+    /* Expanders */
+    .streamlit-expanderHeader {
+        background-color: #f8f9fa;
+        border-radius: 5px;
+    }
+    
+    /* Expander content */
+    .streamlit-expanderContent {
+        border-left: 1px solid #dee2e6;
+        padding-left: 15px;
+    }
+    
+    /* Tables */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    thead th {
+        background-color: var(--escutaris-verde);
+        color: white;
+        padding: 8px;
+        text-align: left;
+    }
+    
+    tbody tr:nth-child(odd) {
+        background-color: #f2f2f2;
+    }
+    
+    tbody td {
+        padding: 8px;
+        border-bottom: 1px solid #ddd;
+    }
+    
+    /* Social media icons */
+    .social-icon {
+        margin-right: 10px;
+        font-size: 24px;
+        color: var(--escutaris-verde);
+    }
+    
+    /* Link colors */
+    a {
+        color: var(--escutaris-verde) !important;
+        text-decoration: none;
+    }
+    
+    a:hover {
+        text-decoration: underline;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Aplicar o estilo
+aplicar_estilo_escutaris()
 
 # Título da página
 st.title("Informações HSE-IT")
 
+# Sobre o Questionário HSE-IT (Card)
+st.markdown('<div class="info-card">', unsafe_allow_html=True)
+st.subheader("Sobre o Questionário HSE-IT")
 st.write("""
-## Sobre o Questionário HSE-IT
-
 O HSE-IT (Health and Safety Executive - Indicator Tool) é um questionário validado para avaliação de 
 fatores psicossociais no ambiente de trabalho, desenvolvido pela instituição britânica de saúde e segurança ocupacional.
 
 O questionário consiste em 35 perguntas que avaliam 7 dimensões de fatores psicossociais, permitindo identificar
 áreas de risco que precisam de intervenção.
 """)
+st.markdown('</div>', unsafe_allow_html=True)
 
 # Mostrar dimensões do HSE-IT
 st.subheader("Dimensões Avaliadas")
@@ -65,7 +173,7 @@ for dimensao, questoes in DIMENSOES_HSE.items():
                 35: "O meu chefe imediato encoraja-me no trabalho"
             }
             
-            # Corrigido o problema de indentação aqui
+            # Corrected indentation for this if block
             if q in questoes_texto:
                 texto_questao = questoes_texto[q]
                 
@@ -74,7 +182,8 @@ for dimensao, questoes in DIMENSOES_HSE.items():
             else:
                 st.write(f"- {q}: {texto_questao}")
 
-# Explicação sobre a interpretação dos resultados
+# Explicação sobre a interpretação dos resultados (Card)
+st.markdown('<div class="info-card">', unsafe_allow_html=True)
 st.subheader("Interpretação dos Resultados")
 
 st.write("""
@@ -87,7 +196,7 @@ A classificação de risco é feita com base na média de cada dimensão:
 # Tabela de classificação de risco
 risco_data = {
    "Classificação": ["Risco Muito Alto 🔴", "Risco Alto 🟠", "Risco Moderado 🟡", "Risco Baixo 🟢", "Risco Muito Baixo 🟣"],
-   "Pontuação Média": ["≤ 1", "> 1 e ≤ 2", "> 2 e ≤ 3", "> 3 e ≤ 4", "> 4"],
+   "Pontuação Média": ["≤ 1", "> 1 e ≤ 2", "> 2 e ≤ 3", "> 3 e ≤ 4", "> 4 e ≤ 5"],
    "Interpretação": [
        "Situação crítica, requer intervenção imediata", 
        "Condição preocupante, intervenção necessária em curto prazo", 
@@ -98,8 +207,10 @@ risco_data = {
 }
 df_risco = pd.DataFrame(risco_data)
 st.table(df_risco)
+st.markdown('</div>', unsafe_allow_html=True)
 
-# Notas sobre questões invertidas
+# Notas sobre questões invertidas (Card)
+st.markdown('<div class="info-card">', unsafe_allow_html=True)
 st.subheader("Notas sobre Questões Invertidas")
 
 st.write(f"""
@@ -110,8 +221,10 @@ Nestas questões, uma resposta de valor mais baixo é considerada positiva. Por 
 
 Este aplicativo já realiza automaticamente a inversão destas questões durante o processamento dos dados.
 """)
+st.markdown('</div>', unsafe_allow_html=True)
 
-# Template para coleta de dados via Google Forms
+# Template para coleta de dados via Google Forms (Card)
+st.markdown('<div class="info-card">', unsafe_allow_html=True)
 st.subheader("Coleta de Dados com Google Forms")
 
 st.write("""
@@ -132,8 +245,10 @@ st.write("""
 5. Baixe a planilha em formato Excel (.xlsx)
 6. Faça upload do arquivo na página "Upload de Dados" desta plataforma
 """)
+st.markdown('</div>', unsafe_allow_html=True)
 
-# Template para coleta de dados via Excel
+# Template para coleta de dados via Excel (Card)
+st.markdown('<div class="info-card">', unsafe_allow_html=True)
 st.subheader("Template para Coleta de Dados via Excel")
 
 st.write("""
@@ -227,8 +342,8 @@ def gerar_template_excel():
            # Criar folha de instruções
            worksheet_instrucoes = workbook.add_worksheet("Instruções")
            
-           # Formatar cabeçalho das instruções
-           header_format = workbook.add_format({'bold': True, 'size': 14})
+           # Formatar cabeçalho das instruções - CORRIGIDO: usar font_size em vez de size
+           header_format = workbook.add_format({'bold': True, 'font_size': 14})
            worksheet_instrucoes.write('A1', 'Instruções para Aplicação do Questionário HSE-IT', header_format)
            worksheet_instrucoes.set_column('A:A', 100)
            
@@ -313,20 +428,28 @@ def gerar_template_excel():
    
    except Exception as e:
        st.error(f"Erro ao gerar o template Excel: {str(e)}")
+       # Mostrar traceback para debug
+       import traceback
+       st.code(traceback.format_exc())
        return None
 
 # Gerar e oferecer o template para download
-template_excel = gerar_template_excel()
-if template_excel:
-   st.download_button(
-       label="Baixar Template HSE-IT",
-       data=template_excel,
-       file_name="template_questionario_hse_it.xlsx",
-       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-       help="Template Excel com as 35 questões do HSE-IT e instruções para aplicação."
-   )
+try:
+    template_excel = gerar_template_excel()
+    if template_excel:
+        st.download_button(
+            label="Baixar Template HSE-IT",
+            data=template_excel,
+            file_name="template_questionario_hse_it.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            help="Template Excel com as 35 questões do HSE-IT e instruções para aplicação."
+        )
+except Exception as e:
+    st.error(f"Erro ao gerar o template Excel: {str(e)}")
+st.markdown('</div>', unsafe_allow_html=True)
 
-# Referências
+# Referências (Card)
+st.markdown('<div class="info-card">', unsafe_allow_html=True)
 st.subheader("Referências")
 
 st.write("""
@@ -338,22 +461,45 @@ st.write("""
 
 Para mais informações, visite o site do HSE: [www.hse.gov.uk/stress](https://www.hse.gov.uk/stress/)
 """)
+st.markdown('</div>', unsafe_allow_html=True)
 
-# Sobre a Escutaris
+# Sobre a Escutaris (Card)
+st.markdown('<div class="info-card">', unsafe_allow_html=True)
 st.subheader("Sobre a Escutaris")
 
-# Logo e informações da empresa
+# Logo e informações da empresa - CORRIGIDO: usar numpy para criar imagem placeholder
 col1, col2 = st.columns([1, 3])
 
 with col1:
-   # Usar um espaço reservado para o logo (você pode substituir pela URL real da imagem)
-   st.image("/api/placeholder/200/200", caption="Escutaris")
+    # Criar imagem de placeholder com numpy
+    placeholder_img = np.ones((200, 200, 3), dtype=np.uint8) * 245  # Cinza claro
+    # Adicionar uma cor verde para simular logo
+    placeholder_img[50:150, 50:150] = [90, 113, 61]  # Cor verde Escutaris
+    st.image(placeholder_img, caption="Escutaris")
 
 with col2:
-   st.markdown("""
-   ### Transformando ambientes de trabalho
-   
-   A Escutaris é especializada em diagnósticos psicossociais e saúde mental corporativa. Oferecemos soluções personalizadas para identificar, gerenciar e minimizar riscos psicossociais no ambiente de trabalho.
-   
-   [Visite nosso site](https://escutaris.com.br) para conhecer mais sobre nossos serviços e soluções.
-   """)
+    st.markdown("""
+    ### Transformando ambientes de trabalho
+    
+    A Escutaris é especialista na identificação e gestão de riscos psicossociais, oferecendo soluções personalizadas e embasadas cientificamente.
+    
+    **Soluções da Escutaris:**
+    - Mapeamento completo dos fatores psicossociais com questionários validados
+    - Pesquisas de clima organizacional para identificar problemas estruturais
+    - Entrevistas individuais e grupos focais para aprofundar a análise
+    - Análises detalhadas e relatórios inteligentes para embasar decisões estratégicas
+    - Mentoria para líderes e profissionais de SST, capacitando gestores para interpretar dados e implementar medidas eficazes
+    
+    [Visite nosso site](https://escutaris.com.br) para conhecer mais sobre nossos serviços e soluções.
+    """)
+
+# Redes sociais
+st.subheader("Redes Sociais")
+st.markdown("""
+- **E-mail:** [contato@escutaris.com.br](mailto:contato@escutaris.com.br)
+- **Instagram:** [escutarissaudemental](https://www.instagram.com/escutarissaudemental/)
+- **LinkedIn:** [escutaris](https://www.linkedin.com/in/escutaris/)
+- **YouTube:** [Escutaris](https://www.youtube.com/@Escutaris)
+- **Twitter/X:** [escutaris_sst](https://twitter.com/escutaris_sst)
+""")
+st.markdown('</div>', unsafe_allow_html=True)
