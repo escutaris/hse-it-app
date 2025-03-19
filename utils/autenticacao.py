@@ -1,16 +1,47 @@
 import streamlit as st
 import pyrebase
-from firebase_config import firebaseConfig
+import os
+import firebase_admin
+from firebase_admin import credentials, auth
+from dotenv import load_dotenv
 
-# Inicializar Firebase
+# Carregar variáveis de ambiente
+load_dotenv()
+
+# Configuração do Firebase
+firebaseConfig = {
+  "apiKey": os.getenv("FIREBASE_API_KEY"),
+  "authDomain": os.getenv("FIREBASE_AUTH_DOMAIN"),
+  "projectId": os.getenv("FIREBASE_PROJECT_ID"),
+  "storageBucket": os.getenv("FIREBASE_STORAGE_BUCKET"),
+  "messagingSenderId": os.getenv("FIREBASE_MESSAGING_SENDER_ID"),
+  "appId": os.getenv("FIREBASE_APP_ID"),
+  "measurementId": os.getenv("FIREBASE_MEASUREMENT_ID"),
+  "databaseURL": os.getenv("FIREBASE_DATABASE_URL", "")
+}
+
+# Inicializar Firebase Admin SDK (apenas uma vez)
+if not firebase_admin._apps:
+    try:
+        # Tentar carregar o arquivo de credenciais
+        cred = credentials.Certificate("serviceAccountKey.json")
+        firebase_admin.initialize_app(cred)
+    except Exception as e:
+        st.error(f"Erro ao inicializar Firebase Admin: {e}")
+        st.info("Verifique se o arquivo serviceAccountKey.json está na raiz do projeto")
+
+# Inicializar Firebase para autenticação client-side
 firebase = pyrebase.initialize_app(firebaseConfig)
-auth = firebase.auth()
+auth_firebase = firebase.auth()
 
 def verificar_senha():
     """Verifica a autenticação do usuário via Firebase."""
     if "user_authenticated" in st.session_state and st.session_state.user_authenticated:
         return True
 
+    # Adicionar logo/imagem
+    st.image("https://raw.githubusercontent.com/username/hse-app/main/logo.png", width=200)
+    
     # Formulário de login
     with st.form("login_form"):
         st.title("Escutaris HSE Analytics")
@@ -30,7 +61,7 @@ def verificar_senha():
     if submitted:
         try:
             # Tente autenticar com Firebase
-            user = auth.sign_in_with_email_and_password(email, senha)
+            user = auth_firebase.sign_in_with_email_and_password(email, senha)
             st.session_state.user_authenticated = True
             st.session_state.user_info = user
             return True
