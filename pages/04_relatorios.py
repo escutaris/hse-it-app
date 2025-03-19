@@ -127,59 +127,67 @@ except Exception as e:
 st.header("Download de Relatórios")
 st.write("Escolha abaixo o tipo de relatório que deseja gerar.")
 
+# Informação sobre os PDFs
+st.info("""
+📄 **Sobre os relatórios PDF:**
+Os relatórios PDF podem não exibir corretamente caracteres acentuados. 
+Para melhor visualização de textos com acentos, recomendamos usar o Relatório Excel.
+""")
+
+# Função melhorada para remover acentos com múltiplos fallbacks
+def remover_acentos(texto):
+    """Remove acentos e caracteres especiais, com fallback robusto."""
+    if not texto:
+        return ""
+        
+    try:
+        # Normaliza para forma NFD e remove diacríticos
+        import unicodedata
+        return ''.join(c for c in unicodedata.normalize('NFD', str(texto))
+                     if unicodedata.category(c) != 'Mn')
+    except Exception:
+        # Fallback mais simples se unicodedata falhar
+        try:
+            # Substituir caracteres problemáticos comuns
+            texto = str(texto)
+            replacements = {
+                'á': 'a', 'à': 'a', 'â': 'a', 'ã': 'a',
+                'é': 'e', 'ê': 'e',
+                'í': 'i',
+                'ó': 'o', 'ô': 'o', 'õ': 'o',
+                'ú': 'u', 'ü': 'u',
+                'ç': 'c',
+                'Á': 'A', 'À': 'A', 'Â': 'A', 'Ã': 'A',
+                'É': 'E', 'Ê': 'E',
+                'Í': 'I',
+                'Ó': 'O', 'Ô': 'O', 'Õ': 'O',
+                'Ú': 'U', 'Ü': 'U',
+                'Ç': 'C'
+            }
+            
+            for orig, dest in replacements.items():
+                texto = texto.replace(orig, dest)
+            return texto
+        except Exception:
+            # Último recurso: ASCII simples
+            try:
+                return str(texto).encode('ascii', 'replace').decode('ascii')
+            except:
+                return str(texto)
+
 # Function to generate the Action Plan PDF
 def gerar_pdf_plano_acao(df_plano_acao):
     try:
-        # Criar um PDF com suporte a caracteres UTF-8
-        class PDF(FPDF):
-            def __init__(self):
-                super().__init__()
-                # Adicionar fonte com suporte a UTF-8
-                try:
-                    self.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
-                    self.add_font('DejaVu', 'B', 'DejaVuSans-Bold.ttf', uni=True)
-                except Exception:
-                    pass  # Fallback para fontes padrão
-            
-            def header(self):
-                # Cabeçalho opcional para todas as páginas
-                self.set_font('Arial', 'B', 10)
-                self.cell(0, 10, 'Escutaris HSE Analytics - Plano de Ação', 0, 1, 'R')
-                self.ln(5)
-                
-            def footer(self):
-                # Rodapé com página
-                self.set_y(-15)
-                self.set_font('Arial', '', 8)
-                self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'C')
+        # Criar PDF usando só abordagem padrão, sem fontes especiais
+        pdf = FPDF()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.add_page()
         
-        # Se não tivermos as fontes DejaVu disponíveis, criar uma alternativa mais simples
-        try:
-            pdf = PDF()
-            pdf.set_auto_page_break(auto=True, margin=15)
-            pdf.add_page()
-            
-            # Tentar usar fonte DejaVu para caracteres especiais
-            try:
-                pdf.set_font("DejaVu", 'B', 16)
-            except Exception:
-                pdf.set_font("Arial", 'B', 16)
-        except Exception:
-            # Fallback para versão mais simples sem caracteres especiais
-            pdf = FPDF()
-            pdf.set_auto_page_break(auto=True, margin=15)
-            pdf.add_page()
-            
-            # Usar fonte padrão ASCII
-            pdf.set_font("Arial", style='B', size=16)
-            # Aviso para o usuário sobre caracteres especiais
-            st.warning("Alguns caracteres especiais podem não aparecer corretamente no PDF. Recomendamos usar o relatório Excel para melhor visualização.")
+        # Configuração básica de fonte
+        pdf.set_font("Arial", style='B', size=16)
         
-        # Título - remover acentos se não tiver suporte Unicode
-        try:
-            pdf.cell(200, 10, "Plano de Ação - HSE-IT: Fatores Psicossociais", ln=True, align='C')
-        except Exception:
-            pdf.cell(200, 10, "Plano de Acao - HSE-IT: Fatores Psicossociais", ln=True, align='C')
+        # Título - sem acentos
+        pdf.cell(200, 10, "Plano de Acao - HSE-IT: Fatores Psicossociais", ln=True, align='C')
         pdf.ln(10)
         
         # Data do relatório
@@ -188,23 +196,13 @@ def gerar_pdf_plano_acao(df_plano_acao):
         pdf.cell(0, 10, f"Data do relatorio: {data_atual}", ln=True)
         pdf.ln(5)
         
-        # Função para remover acentos
-        import unicodedata
-        def remover_acentos(texto):
-            try:
-                # Normaliza para forma NFD e remove diacríticos
-                return ''.join(c for c in unicodedata.normalize('NFD', texto)
-                            if unicodedata.category(c) != 'Mn')
-            except Exception:
-                return texto.encode('ascii', 'replace').decode('ascii')
-        
         # Group by dimension
         for dimensao in df_plano_acao["Dimensão"].unique():
             df_dimensao = df_plano_acao[df_plano_acao["Dimensão"] == dimensao]
             nivel_risco = df_dimensao["Nível de Risco"].iloc[0]
             media = df_dimensao["Média"].iloc[0]
             
-            # Tratar texto para compatibilidade
+            # Remover acentos para compatibilidade
             dimensao_safe = remover_acentos(dimensao)
             nivel_risco_safe = remover_acentos(nivel_risco)
             
@@ -224,7 +222,7 @@ def gerar_pdf_plano_acao(df_plano_acao):
                 pdf.set_x(15)  # Indentation for list
                 sugestao = row['Sugestão de Ação']
                 
-                # Tratar texto para compatibilidade
+                # Remover acentos para compatibilidade
                 sugestao_safe = remover_acentos(sugestao)
                 
                 pdf.multi_cell(0, 6, f"- {sugestao_safe}", 0)
@@ -250,7 +248,7 @@ def gerar_pdf_plano_acao(df_plano_acao):
                 pdf.set_x(15)
                 sugestao = row['Sugestão de Ação']
                 
-                # Tratar texto para compatibilidade
+                # Remover acentos para compatibilidade
                 sugestao_safe = remover_acentos(sugestao)
                 
                 # Check if text is too long
@@ -310,48 +308,15 @@ def gerar_pdf_plano_acao(df_plano_acao):
 # Function to generate results PDF report
 def gerar_pdf(df_resultados):
     try:
-        # Criar um PDF com suporte a caracteres UTF-8
-        class PDF(FPDF):
-            def __init__(self):
-                super().__init__()
-                # Tentar usar fonte com suporte a UTF-8
-                try:
-                    self.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
-                    self.add_font('DejaVu', 'B', 'DejaVuSans-Bold.ttf', uni=True)
-                except Exception:
-                    pass  # Fallback para fontes padrão
-            
-            def header(self):
-                # Cabeçalho opcional
-                self.set_font('Arial', 'B', 10)
-                self.cell(0, 10, 'Escutaris HSE Analytics', 0, 1, 'R')
-                self.ln(5)
-                
-            def footer(self):
-                # Rodapé com página
-                self.set_y(-15)
-                self.set_font('Arial', '', 8)
-                self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'C')
+        # Criar PDF simples sem tentativa de usar fontes especiais
+        pdf = FPDF()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.add_page()
         
-        # Tentar criar PDF com fontes avançadas
-        try:
-            pdf = PDF()
-            pdf.set_auto_page_break(auto=True, margin=15)
-            pdf.add_page()
-            
-            # Tentar usar a fonte DejaVu para melhor suporte a caracteres especiais
-            try:
-                pdf.set_font("DejaVu", 'B', 14)
-            except Exception:
-                pdf.set_font("Arial", style='B', size=14)
-        except Exception:
-            # Fallback para versão mais simples
-            pdf = FPDF()
-            pdf.set_auto_page_break(auto=True, margin=15)
-            pdf.add_page()
-            pdf.set_font("Arial", style='B', size=14)
+        # Configuração básica de fonte
+        pdf.set_font("Arial", style='B', size=14)
         
-        # Título - sem acentos para compatibilidade
+        # Título - sem acentos
         pdf.cell(200, 10, "Relatorio de Fatores Psicossociais - HSE-IT", ln=True, align='C')
         pdf.ln(10)
         
@@ -359,16 +324,6 @@ def gerar_pdf(df_resultados):
         pdf.set_font("Arial", style='I', size=10)
         pdf.multi_cell(0, 5, "O questionario HSE-IT avalia 7 dimensoes de fatores psicossociais no trabalho. Os resultados sao apresentados em uma escala de 1 a 5, onde valores mais altos indicam melhores resultados.", 0)
         pdf.ln(5)
-        
-        # Função para remover acentos
-        import unicodedata
-        def remover_acentos(texto):
-            try:
-                # Normaliza para forma NFD e remove diacríticos
-                return ''.join(c for c in unicodedata.normalize('NFD', texto)
-                            if unicodedata.category(c) != 'Mn')
-            except Exception:
-                return texto.encode('ascii', 'replace').decode('ascii')
         
         # Results table
         pdf.set_font("Arial", style='B', size=10)
@@ -379,7 +334,7 @@ def gerar_pdf(df_resultados):
         
         pdf.set_font("Arial", size=10)
         for _, row in df_resultados.iterrows():
-            # Remover acentos e caracteres especiais para compatibilidade
+            # Remover acentos e caracteres especiais
             dimensao = remover_acentos(row['Dimensão'])
             risco = row['Risco'].split(' ')[0] + ' ' + row['Risco'].split(' ')[1]  # Remove emoji
             
@@ -543,8 +498,16 @@ def gerar_excel_completo(df, df_perguntas, colunas_filtro, colunas_perguntas):
             # Apply conditional formatting based on risk level
             for row_num, (_, row) in enumerate(df_plano_acao.iterrows(), 1):
                 nivel_risco = row["Nível de Risco"]
-                if nivel_risco in risco_format:
-                    worksheet_plano.write(row_num, 1, nivel_risco, risco_format[nivel_risco])
+                nivel_risco_base = nivel_risco.split()[0] + " " + nivel_risco.split()[1]  # Remove emoji
+                
+                if nivel_risco_base in risco_format:
+                    worksheet_plano.write(row_num, 1, nivel_risco, risco_format[nivel_risco_base])
+                else:
+                    # Se não encontrar correspondência exata, tenta achar parcial
+                    for nivel in risco_format.keys():
+                        if nivel in nivel_risco:
+                            worksheet_plano.write(row_num, 1, nivel_risco, risco_format[nivel])
+                            break
 
             # Add data validation for Status column
             status_options = ['Não iniciada', 'Em andamento', 'Concluída', 'Cancelada']
