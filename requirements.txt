@@ -5,3 +5,5 @@ fpdf
 xlsxwriter
 openpyxl
 plotly
+firebase-admin
+pyrebase4
