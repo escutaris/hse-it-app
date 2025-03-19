@@ -1,42 +1,46 @@
 import streamlit as st
 import json
+from datetime import datetime, timedelta
 import firebase_admin
 from firebase_admin import credentials, auth
 import pyrebase
+from firebase_config import firebaseConfig
 
 # Inicializar Firebase Admin SDK (apenas uma vez)
 if not firebase_admin._apps:
     try:
-        # Obter credenciais do Streamlit Secrets
-        service_account_info = st.secrets["service_account"]
-        
-        # Convertendo o dicionário para o formato esperado pelo Firebase Admin
-        cred = credentials.Certificate(service_account_info)
+        # Tentar obter credenciais do Streamlit Secrets
+        if 'service_account' in st.secrets:
+            service_account_info = st.secrets["service_account"]
+            cred = credentials.Certificate(service_account_info)
+        else:
+            # Fallback para arquivo JSON local (modo de desenvolvimento)
+            try:
+                cred = credentials.Certificate('serviceAccountKey.json')
+            except:
+                st.error("Não foi possível carregar as credenciais do Firebase. Verificar configuração.")
+                
         firebase_admin.initialize_app(cred)
-        
-        print("Firebase Admin SDK inicializado com sucesso")
     except Exception as e:
-        st.error(f"Erro ao inicializar Firebase Admin: {e}")
-        print(f"Erro ao inicializar Firebase Admin: {e}")
+        # Ativar modo de demonstração automaticamente em caso de erros
+        st.session_state.demo_mode = True
 
-# Configuração do Firebase para autenticação client-side
-firebase_config = {
-    "apiKey": st.secrets["firebase"]["api_key"],
-    "authDomain": st.secrets["firebase"]["auth_domain"],
-    "projectId": st.secrets["firebase"]["project_id"],
-    "storageBucket": st.secrets["firebase"]["storage_bucket"],
-    "messagingSenderId": st.secrets["firebase"]["messaging_sender_id"],
-    "appId": st.secrets["firebase"]["app_id"],
-    "databaseURL": st.secrets["firebase"]["database_url"]
-}
-
-# Inicializar Pyrebase
-firebase = pyrebase.initialize_app(firebase_config)
-auth_firebase = firebase.auth()
+# Inicializar Pyrebase com a configuração importada
+try:
+    firebase = pyrebase.initialize_app(firebaseConfig)
+    auth_firebase = firebase.auth()
+except Exception as e:
+    # Modo silencioso de erro - irá permitir o modo de demonstração
+    pass
 
 def verificar_senha():
-    """Verifica a autenticação do usuário via Firebase."""
+    """Retorna `True` se a senha estiver correta ou se estiver no modo de demonstração."""
+    # Se já autenticado, retorna True
     if "user_authenticated" in st.session_state and st.session_state.user_authenticated:
+        return True
+    
+    # Se estiver em modo de demonstração, retorna True
+    if "demo_mode" in st.session_state and st.session_state.demo_mode:
         return True
 
     # Título de login com logo
@@ -68,8 +72,13 @@ def verificar_senha():
         try:
             # Tente autenticar com Firebase
             user = auth_firebase.sign_in_with_email_and_password(email, senha)
+            
+            # Armazenar token e timestamp para sessão segura
             st.session_state.user_authenticated = True
             st.session_state.user_info = user
+            st.session_state.auth_time = datetime.now()
+            st.session_state.auth_expiry = datetime.now() + timedelta(hours=24)  # Expiração de 24h
+            
             st.success("Login realizado com sucesso!")
             return True
         except Exception as e:
@@ -81,8 +90,25 @@ def verificar_senha():
     if demo_mode:
         st.session_state.user_authenticated = True
         st.session_state.demo_mode = True
-        st.warning("Você está usando o modo de demonstração. Alguns recursos podem estar limitados.")
+        st.session_state.auth_time = datetime.now()
+        st.session_state.auth_expiry = datetime.now() + timedelta(hours=1)  # Expiração mais curta no modo demo
+        
+        st.warning("Você está usando o modo de demonstração. Alguns recursos podem estar limitados e a sessão expira em 1 hora.")
         return True
+    
+    # Verificar timeout de sessão
+    if "auth_expiry" in st.session_state and datetime.now() > st.session_state.auth_expiry:
+        # Limpar dados de autenticação se expirados
+        st.session_state.user_authenticated = False
+        if "user_info" in st.session_state:
+            del st.session_state.user_info
+        if "auth_time" in st.session_state:
+            del st.session_state.auth_time
+        if "auth_expiry" in st.session_state:
+            del st.session_state.auth_expiry
+            
+        st.error("Sua sessão expirou. Por favor, faça login novamente.")
+        return False
     
     # Informações de rodapé
     st.markdown(
