@@ -1,11 +1,17 @@
 # firebase_config.py
+import os
+from dotenv import load_dotenv
+
+# Carregar variáveis de ambiente
+load_dotenv()
 
 firebaseConfig = {
-  "apiKey": "AIzaSyC9EnMe_gq7oJrOf9Lp3mRyYKEYcqo1dGI",
-  "authDomain": "hse-app-escutaris.firebaseapp.com",
-  "projectId": "hse-app-escutaris",
-  "storageBucket": "hse-app-escutaris.firebasestorage.app",
-  "messagingSenderId": "862256191765",
-  "appId": "1:862256191765:web:93d2976d6af3f47b18711c",
-  "measurementId": "G-OHG200KT2M"
+  "apiKey": os.getenv("FIREBASE_API_KEY"),
+  "authDomain": os.getenv("FIREBASE_AUTH_DOMAIN"),
+  "projectId": os.getenv("FIREBASE_PROJECT_ID"),
+  "storageBucket": os.getenv("FIREBASE_STORAGE_BUCKET"),
+  "messagingSenderId": os.getenv("FIREBASE_MESSAGING_SENDER_ID"),
+  "appId": os.getenv("FIREBASE_APP_ID"),
+  "measurementId": os.getenv("FIREBASE_MEASUREMENT_ID"),
+  "databaseURL": ""  # Deixe vazio se não estiver usando Realtime Database
 }
