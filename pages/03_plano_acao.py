@@ -239,7 +239,7 @@ aplicar_estilo_escutaris()
 st.title("Plano de Ação - HSE-IT")
 
 # Verificar se há dados para exibir - CORRIGIDO: Verificação segura
-if not st.session_state.get("df_resultados") is not None:
+if "df_resultados" not in st.session_state or st.session_state.get("df_resultados") is None:
     st.warning("Nenhum resultado disponível. Por favor, faça upload de um arquivo na página 'Upload de Dados'.")
     st.stop()
 
@@ -601,57 +601,103 @@ else:
     
     # Criar uma visualização editável do plano
     try:
+        # CORREÇÃO: Verificar se o atributo TextAreaColumn existe
+        # Define configurações de colunas com verificação de compatibilidade para diferentes versões do Streamlit
+        
+        # Configuração para Dimensão
+        dimensao_config = st.column_config.TextColumn(
+            "Dimensão",
+            help="Dimensão do HSE-IT avaliada",
+            disabled=True,
+            width="medium"
+        )
+        
+        # Configuração para Média
+        media_config = st.column_config.NumberColumn(
+            "Média",
+            help="Pontuação média obtida na avaliação (1-5)",
+            format="%.2f",
+            disabled=True,
+            width="small"
+        )
+        
+        # Configuração para Nível de Risco
+        nivel_risco_config = st.column_config.TextColumn(
+            "Nível de Risco",
+            help="Classificação do nível de risco baseada na média",
+            disabled=True,
+            width="medium"
+        )
+        
+        # Configuração para Riscos Potenciais
+        riscos_config = st.column_config.TextColumn(
+            "Riscos Potenciais",
+            help="Consequências potenciais relacionadas a este fator psicossocial",
+            width="large"
+        )
+        
+        # CORREÇÃO: Verificar se TextAreaColumn está disponível para Sugestões de Ações
+        if hasattr(st.column_config, "TextAreaColumn"):
+            # Usar TextAreaColumn se disponível (versões mais recentes)
+            sugestoes_config = st.column_config.TextAreaColumn(
+                "Sugestões de Ações Mitigantes",
+                help="Ações sugeridas para mitigar os riscos identificados",
+                width="large",
+                height="medium"
+            )
+        else:
+            # Fallback para versões mais antigas
+            sugestoes_config = st.column_config.Column(
+                "Sugestões de Ações Mitigantes",
+                help="Ações sugeridas para mitigar os riscos identificados",
+                width="large"
+            )
+        
+        # CORREÇÃO: Verificar se TextAreaColumn está disponível para Outras Soluções
+        if hasattr(st.column_config, "TextAreaColumn"):
+            # Usar TextAreaColumn se disponível (versões mais recentes)
+            outras_solucoes_config = st.column_config.TextAreaColumn(
+                "Outras Soluções",
+                help="Adicione outras soluções específicas para sua organização",
+                width="large",
+                height="medium"
+            )
+        else:
+            # Fallback para versões mais antigas
+            outras_solucoes_config = st.column_config.Column(
+                "Outras Soluções",
+                help="Adicione outras soluções específicas para sua organização",
+                width="large"
+            )
+        
+        # Configuração para Responsável
+        responsavel_config = st.column_config.TextColumn(
+            "Responsável",
+            help="Pessoa ou equipe responsável pela implementação",
+            width="medium"
+        )
+        
+        # Configuração para Prazo
+        prazo_config = st.column_config.DateColumn(
+            "Prazo",
+            help="Prazo para implementação das ações",
+            min_value=datetime.now().date(),
+            format="DD/MM/YYYY",
+            width="medium"
+        )
+        
+        # Usar as configurações na definição do data_editor
         edited_df = st.data_editor(
             st.session_state.get("plano_editavel", df_plano),
             column_config={
-                "Dimensão": st.column_config.TextColumn(
-                    "Dimensão",
-                    help="Dimensão do HSE-IT avaliada",
-                    disabled=True,
-                    width="medium"
-                ),
-                "Média": st.column_config.NumberColumn(
-                    "Média",
-                    help="Pontuação média obtida na avaliação (1-5)",
-                    format="%.2f",
-                    disabled=True,
-                    width="small"
-                ),
-                "Nível de Risco": st.column_config.TextColumn(
-                    "Nível de Risco",
-                    help="Classificação do nível de risco baseada na média",
-                    disabled=True,
-                    width="medium"
-                ),
-                "Riscos Potenciais": st.column_config.TextColumn(
-                    "Riscos Potenciais",
-                    help="Consequências potenciais relacionadas a este fator psicossocial",
-                    width="large"
-                ),
-                "Sugestões de Ações Mitigantes": st.column_config.TextAreaColumn(
-                    "Sugestões de Ações Mitigantes",
-                    help="Ações sugeridas para mitigar os riscos identificados",
-                    width="large",
-                    height="medium"
-                ),
-                "Outras Soluções": st.column_config.TextAreaColumn(
-                    "Outras Soluções",
-                    help="Adicione outras soluções específicas para sua organização",
-                    width="large",
-                    height="medium"
-                ),
-                "Responsável": st.column_config.TextColumn(
-                    "Responsável",
-                    help="Pessoa ou equipe responsável pela implementação",
-                    width="medium"
-                ),
-                "Prazo": st.column_config.DateColumn(
-                    "Prazo",
-                    help="Prazo para implementação das ações",
-                    min_value=datetime.now().date(),
-                    format="DD/MM/YYYY",
-                    width="medium"
-                )
+                "Dimensão": dimensao_config,
+                "Média": media_config,
+                "Nível de Risco": nivel_risco_config,
+                "Riscos Potenciais": riscos_config,
+                "Sugestões de Ações Mitigantes": sugestoes_config,
+                "Outras Soluções": outras_solucoes_config,
+                "Responsável": responsavel_config,
+                "Prazo": prazo_config
             },
             use_container_width=True,
             num_rows="dynamic",
@@ -663,6 +709,12 @@ else:
     except Exception as e:
         st.error(f"Erro ao exibir editor de dados: {str(e)}")
         st.info("Tente ajustar os filtros ou recarregar a página.")
+        
+        # Exibir detalhes técnicos do erro dentro de um expander para ajudar na depuração
+        with st.expander("Detalhes técnicos do erro", expanded=False):
+            st.code(f"{str(e)}")
+            import traceback
+            st.code(traceback.format_exc())
     
     # Informações adicionais
     with st.expander("Informações sobre o Plano de Ação"):
@@ -742,7 +794,7 @@ else:
                     worksheet.write(0, col_num, value, header_format)
                 
                 # Formatar células com quebra de linha
-                for row_num, row in enumerate(df.itertuples(), 1):
+                for row_num, (_, row) in enumerate(df.itertuples(), 1):
                     # Acesso seguro aos atributos
                     try:
                         # Obter valores com verificação de existência
@@ -877,7 +929,8 @@ else:
                 worksheet_info.write(linha, 1, 'Recomenda-se revisar periodicamente o progresso das ações e ajustar o plano conforme necessário.')
                 
                 # Adicionar aba com dados de diagnóstico - CORRIGIDO: Verificação segura
-                if df_resultados is not None:
+                df_resultados = st.session_state.get("df_resultados")
+                if df_resultados is not None and not df_resultados.empty:
                     try:
                         df_resultados.to_excel(writer, sheet_name='Diagnóstico HSE-IT', index=False)
                         worksheet_diag = writer.sheets['Diagnóstico HSE-IT']
@@ -901,6 +954,7 @@ else:
                                     worksheet_diag.write(row_num, 3, nivel_risco, risco_formats[nivel_risco])
                     except Exception as e:
                         print(f"Erro ao adicionar aba de diagnóstico: {str(e)}")
+                        # Não interromper por erro na aba de diagnóstico
             
             output.seek(0)
             return output
@@ -919,15 +973,16 @@ else:
             # CORRIGIDO: Verificação segura do plano editável
             plano_a_exportar = st.session_state.get("plano_editavel")
             if plano_a_exportar is not None and not plano_a_exportar.empty:
-                data_atual = datetime.now().strftime("%d%m%Y")
-                excel_data = exportar_para_excel(plano_a_exportar)
-                
-                if excel_data:
-                    st.success("Plano de ação gerado com sucesso!")
-                    # Salvar no estado da sessão para o botão de download
-                    st.session_state["excel_plano"] = excel_data
-                    st.session_state["excel_plano_ready"] = True
-                    st.balloons()  # Efeito visual para confirmar sucesso
+                with st.spinner("Gerando Excel... Por favor, aguarde."):
+                    data_atual = datetime.now().strftime("%d%m%Y")
+                    excel_data = exportar_para_excel(plano_a_exportar)
+                    
+                    if excel_data:
+                        st.success("Plano de ação gerado com sucesso!")
+                        # Salvar no estado da sessão para o botão de download
+                        st.session_state["excel_plano"] = excel_data
+                        st.session_state["excel_plano_ready"] = True
+                        st.balloons()  # Efeito visual para confirmar sucesso
             else:
                 st.error("Não há plano de ação para exportar. Verifique os filtros selecionados.")
     
