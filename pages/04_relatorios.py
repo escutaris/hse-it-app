@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import io
 import os
+import tempfile
 from fpdf import FPDF
 from datetime import datetime
 import plotly.graph_objects as go
@@ -129,22 +130,73 @@ st.write("Escolha abaixo o tipo de relatório que deseja gerar.")
 # Function to generate the Action Plan PDF
 def gerar_pdf_plano_acao(df_plano_acao):
     try:
-        pdf = FPDF()
-        pdf.set_auto_page_break(auto=True, margin=15)
-        pdf.add_page()
+        # Criar um PDF com suporte a caracteres UTF-8
+        class PDF(FPDF):
+            def __init__(self):
+                super().__init__()
+                # Adicionar fonte com suporte a UTF-8
+                try:
+                    self.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
+                    self.add_font('DejaVu', 'B', 'DejaVuSans-Bold.ttf', uni=True)
+                except Exception:
+                    pass  # Fallback para fontes padrão
+            
+            def header(self):
+                # Cabeçalho opcional para todas as páginas
+                self.set_font('Arial', 'B', 10)
+                self.cell(0, 10, 'Escutaris HSE Analytics - Plano de Ação', 0, 1, 'R')
+                self.ln(5)
+                
+            def footer(self):
+                # Rodapé com página
+                self.set_y(-15)
+                self.set_font('Arial', '', 8)
+                self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'C')
         
-        # Basic font configuration
-        pdf.set_font("Arial", style='B', size=16)
+        # Se não tivermos as fontes DejaVu disponíveis, criar uma alternativa mais simples
+        try:
+            pdf = PDF()
+            pdf.set_auto_page_break(auto=True, margin=15)
+            pdf.add_page()
+            
+            # Tentar usar fonte DejaVu para caracteres especiais
+            try:
+                pdf.set_font("DejaVu", 'B', 16)
+            except Exception:
+                pdf.set_font("Arial", 'B', 16)
+        except Exception:
+            # Fallback para versão mais simples sem caracteres especiais
+            pdf = FPDF()
+            pdf.set_auto_page_break(auto=True, margin=15)
+            pdf.add_page()
+            
+            # Usar fonte padrão ASCII
+            pdf.set_font("Arial", style='B', size=16)
+            # Aviso para o usuário sobre caracteres especiais
+            st.warning("Alguns caracteres especiais podem não aparecer corretamente no PDF. Recomendamos usar o relatório Excel para melhor visualização.")
         
-        # Title
-        pdf.cell(200, 10, "Plano de Acao - HSE-IT: Fatores Psicossociais", ln=True, align='C')
+        # Título - remover acentos se não tiver suporte Unicode
+        try:
+            pdf.cell(200, 10, "Plano de Ação - HSE-IT: Fatores Psicossociais", ln=True, align='C')
+        except Exception:
+            pdf.cell(200, 10, "Plano de Acao - HSE-IT: Fatores Psicossociais", ln=True, align='C')
         pdf.ln(10)
         
-        # Report date
+        # Data do relatório
         pdf.set_font("Arial", size=10)
         data_atual = datetime.now().strftime("%d/%m/%Y")
         pdf.cell(0, 10, f"Data do relatorio: {data_atual}", ln=True)
         pdf.ln(5)
+        
+        # Função para remover acentos
+        import unicodedata
+        def remover_acentos(texto):
+            try:
+                # Normaliza para forma NFD e remove diacríticos
+                return ''.join(c for c in unicodedata.normalize('NFD', texto)
+                            if unicodedata.category(c) != 'Mn')
+            except Exception:
+                return texto.encode('ascii', 'replace').decode('ascii')
         
         # Group by dimension
         for dimensao in df_plano_acao["Dimensão"].unique():
@@ -152,13 +204,17 @@ def gerar_pdf_plano_acao(df_plano_acao):
             nivel_risco = df_dimensao["Nível de Risco"].iloc[0]
             media = df_dimensao["Média"].iloc[0]
             
+            # Tratar texto para compatibilidade
+            dimensao_safe = remover_acentos(dimensao)
+            nivel_risco_safe = remover_acentos(nivel_risco)
+            
             # Dimension title
             pdf.set_font("Arial", style='B', size=12)
-            pdf.cell(0, 10, f"{dimensao}", ln=True)
+            pdf.cell(0, 10, f"{dimensao_safe}", ln=True)
             
             # Risk information
             pdf.set_font("Arial", style='I', size=10)
-            pdf.cell(0, 8, f"Media: {media} - Nivel de Risco: {nivel_risco}", ln=True)
+            pdf.cell(0, 8, f"Media: {media} - Nivel de Risco: {nivel_risco_safe}", ln=True)
             
             # Suggested actions
             pdf.set_font("Arial", size=10)
@@ -166,7 +222,12 @@ def gerar_pdf_plano_acao(df_plano_acao):
             
             for _, row in df_dimensao.iterrows():
                 pdf.set_x(15)  # Indentation for list
-                pdf.cell(0, 6, f"- {row['Sugestão de Ação'].encode('ascii', 'replace').decode('ascii')}", ln=True)
+                sugestao = row['Sugestão de Ação']
+                
+                # Tratar texto para compatibilidade
+                sugestao_safe = remover_acentos(sugestao)
+                
+                pdf.multi_cell(0, 6, f"- {sugestao_safe}", 0)
             
             # Space for implementation table
             pdf.ln(5)
@@ -187,13 +248,16 @@ def gerar_pdf_plano_acao(df_plano_acao):
             pdf.set_font("Arial", size=8)
             for _, row in df_dimensao.iterrows():
                 pdf.set_x(15)
-                acao = row['Sugestão de Ação'].encode('ascii', 'replace').decode('ascii')
+                sugestao = row['Sugestão de Ação']
+                
+                # Tratar texto para compatibilidade
+                sugestao_safe = remover_acentos(sugestao)
                 
                 # Check if text is too long
-                if len(acao) > 60:
-                    acao = acao[:57] + "..."
+                if len(sugestao_safe) > 60:
+                    sugestao_safe = sugestao_safe[:57] + "..."
                 
-                pdf.cell(col_width[0], 7, acao, border=1)
+                pdf.cell(col_width[0], 7, sugestao_safe, border=1)
                 pdf.cell(col_width[1], 7, "", border=1)
                 pdf.cell(col_width[2], 7, "", border=1)
                 pdf.ln()
@@ -211,33 +275,33 @@ def gerar_pdf_plano_acao(df_plano_acao):
         pdf.cell(0, 6, "Risco Baixo: 3 < Media <= 4", ln=True)
         pdf.cell(0, 6, "Risco Muito Baixo: Media > 4", ln=True)
         
-        # Add HSE-IT dimensions description
-        # FIXED: The syntax error was in the next line, where the multi_cell function was improperly nested inside a cell function
-        pdf.ln(5)
+        # Add observations about the action plan
+        pdf.ln(10)
         pdf.set_font("Arial", style='B', size=11)
-        pdf.cell(0, 8, "Sobre o HSE-IT:", ln=True)
+        pdf.cell(0, 8, "Observacoes:", ln=True)
         pdf.set_font("Arial", size=9)
+        pdf.multi_cell(0, 6, "Este plano de acao foi gerado automaticamente com base nos resultados da avaliacao HSE-IT. As acoes sugeridas devem ser analisadas e adaptadas ao contexto especifico da organizacao. Recomenda-se definir responsaveis, prazos e indicadores de monitoramento para cada acao implementada.", 0)
         
-        # Use multi_cell correctly
-        pdf.multi_cell(0, 6, "O questionario HSE-IT avalia 7 dimensoes de fatores psicossociais no trabalho: Demanda, Controle, Apoio da Chefia, Apoio dos Colegas, Relacionamentos, Funcao e Mudanca. Priorize as acoes nas dimensoes com maior risco.", 0)
+        # Usar arquivo temporário para evitar problemas com BytesIO
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
+            temp_filename = temp_file.name
         
-        # Handle BytesIO correctly
-        temp_file = "temp_plano_acao.pdf"
-        pdf.output(temp_file)
+        # Salvar para arquivo temporário
+        pdf.output(temp_filename)
         
-        with open(temp_file, "rb") as file:
+        # Ler o arquivo temporário para retornar
+        with open(temp_filename, "rb") as file:
             output = io.BytesIO(file.read())
         
-        # Clean up temporary file
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
+        # Limpar arquivo temporário
+        os.unlink(temp_filename)
         
         return output
     
     except Exception as e:
         st.error(f"Erro ao gerar o PDF do Plano de Ação: {str(e)}")
         
-        # More detailed error information for debugging
+        # Mais informações de erro para debugging
         import traceback
         st.code(traceback.format_exc())
         
@@ -246,14 +310,48 @@ def gerar_pdf_plano_acao(df_plano_acao):
 # Function to generate results PDF report
 def gerar_pdf(df_resultados):
     try:
-        pdf = FPDF()
-        pdf.set_auto_page_break(auto=True, margin=15)
-        pdf.add_page()
+        # Criar um PDF com suporte a caracteres UTF-8
+        class PDF(FPDF):
+            def __init__(self):
+                super().__init__()
+                # Tentar usar fonte com suporte a UTF-8
+                try:
+                    self.add_font('DejaVu', '', 'DejaVuSans.ttf', uni=True)
+                    self.add_font('DejaVu', 'B', 'DejaVuSans-Bold.ttf', uni=True)
+                except Exception:
+                    pass  # Fallback para fontes padrão
+            
+            def header(self):
+                # Cabeçalho opcional
+                self.set_font('Arial', 'B', 10)
+                self.cell(0, 10, 'Escutaris HSE Analytics', 0, 1, 'R')
+                self.ln(5)
+                
+            def footer(self):
+                # Rodapé com página
+                self.set_y(-15)
+                self.set_font('Arial', '', 8)
+                self.cell(0, 10, f'Página {self.page_no()}', 0, 0, 'C')
         
-        # Basic font configuration
-        pdf.set_font("Arial", style='B', size=14)
+        # Tentar criar PDF com fontes avançadas
+        try:
+            pdf = PDF()
+            pdf.set_auto_page_break(auto=True, margin=15)
+            pdf.add_page()
+            
+            # Tentar usar a fonte DejaVu para melhor suporte a caracteres especiais
+            try:
+                pdf.set_font("DejaVu", 'B', 14)
+            except Exception:
+                pdf.set_font("Arial", style='B', size=14)
+        except Exception:
+            # Fallback para versão mais simples
+            pdf = FPDF()
+            pdf.set_auto_page_break(auto=True, margin=15)
+            pdf.add_page()
+            pdf.set_font("Arial", style='B', size=14)
         
-        # Use ASCII-safe strings to avoid encoding issues
+        # Título - sem acentos para compatibilidade
         pdf.cell(200, 10, "Relatorio de Fatores Psicossociais - HSE-IT", ln=True, align='C')
         pdf.ln(10)
         
@@ -261,6 +359,16 @@ def gerar_pdf(df_resultados):
         pdf.set_font("Arial", style='I', size=10)
         pdf.multi_cell(0, 5, "O questionario HSE-IT avalia 7 dimensoes de fatores psicossociais no trabalho. Os resultados sao apresentados em uma escala de 1 a 5, onde valores mais altos indicam melhores resultados.", 0)
         pdf.ln(5)
+        
+        # Função para remover acentos
+        import unicodedata
+        def remover_acentos(texto):
+            try:
+                # Normaliza para forma NFD e remove diacríticos
+                return ''.join(c for c in unicodedata.normalize('NFD', texto)
+                            if unicodedata.category(c) != 'Mn')
+            except Exception:
+                return texto.encode('ascii', 'replace').decode('ascii')
         
         # Results table
         pdf.set_font("Arial", style='B', size=10)
@@ -271,8 +379,8 @@ def gerar_pdf(df_resultados):
         
         pdf.set_font("Arial", size=10)
         for _, row in df_resultados.iterrows():
-            # Remove accents and special characters
-            dimensao = row['Dimensão'].encode('ascii', 'replace').decode('ascii')
+            # Remover acentos e caracteres especiais para compatibilidade
+            dimensao = remover_acentos(row['Dimensão'])
             risco = row['Risco'].split(' ')[0] + ' ' + row['Risco'].split(' ')[1]  # Remove emoji
             
             # Determine background color based on risk
@@ -311,9 +419,9 @@ def gerar_pdf(df_resultados):
         
         for dimensao, descricao in st.session_state.get('DESCRICOES_DIMENSOES', {}).items():
             pdf.set_font("Arial", style='B', size=10)
-            pdf.cell(0, 7, dimensao.encode('ascii', 'replace').decode('ascii'), ln=True)
+            pdf.cell(0, 7, remover_acentos(dimensao), ln=True)
             pdf.set_font("Arial", size=10)
-            pdf.multi_cell(0, 5, descricao.encode('ascii', 'replace').decode('ascii'), 0)
+            pdf.multi_cell(0, 5, remover_acentos(descricao), 0)
             pdf.ln(3)
         
         # Add risk classification information
@@ -334,23 +442,26 @@ def gerar_pdf(df_resultados):
         pdf.set_font("Arial", size=10)
         pdf.multi_cell(0, 5, "Para resultados mais detalhados e um plano de acao personalizado, consulte o arquivo Excel completo ou o documento do Plano de Acao fornecido. Priorize intervencoes nas dimensoes com maior nivel de risco.", 0)
         
-        # Handle BytesIO correctly
-        temp_file = "temp_report.pdf"
-        pdf.output(temp_file)
+        # Usar arquivo temporário para evitar problemas
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
+            temp_filename = temp_file.name
         
-        with open(temp_file, "rb") as file:
+        # Salvar para arquivo temporário
+        pdf.output(temp_filename)
+        
+        # Ler o arquivo temporário
+        with open(temp_filename, "rb") as file:
             output = io.BytesIO(file.read())
         
-        # Clean up temporary file
-        if os.path.exists(temp_file):
-            os.remove(temp_file)
+        # Limpar arquivo temporário
+        os.unlink(temp_filename)
         
         return output
     
     except Exception as e:
         st.error(f"Erro ao gerar o PDF: {str(e)}")
         
-        # More detailed error information for debugging
+        # Mais informações de erro para debugging
         import traceback
         st.code(traceback.format_exc())
         
