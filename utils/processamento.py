@@ -67,29 +67,76 @@ def carregar_dados(uploaded_file):
     
     return df, df_perguntas, colunas_filtro, colunas_perguntas
 
-# Função para processar os dados (incluindo inversão de questões)
+# Função para processar os dados (incluindo inversão de questões) - ATUALIZADA
 def processar_dados_hse(df_perguntas, colunas_perguntas):
+    """
+    Processa dados do HSE-IT, incluindo inversão das questões que precisam ser invertidas.
+    Lida com diferentes formatos de questões (números, textos com números, etc.)
+    """
     # Copiar o dataframe para não modificar o original
     df_processado = df_perguntas.copy()
     
+    # Função auxiliar para extrair número da questão de forma robusta
+    def extrair_numero_questao(coluna):
+        try:
+            coluna_str = str(coluna).strip()
+            
+            # Padrão 1: "Número. Texto" (ex: "1. Pergunta")
+            if '.' in coluna_str and coluna_str[0].isdigit():
+                return int(coluna_str.split('.')[0])
+                
+            # Padrão 2: "Número - Texto" (ex: "1 - Pergunta")
+            elif '-' in coluna_str and coluna_str[0].isdigit():
+                return int(coluna_str.split('-')[0].strip())
+                
+            # Padrão 3: "Número Texto" (ex: "1 Pergunta")
+            elif ' ' in coluna_str and coluna_str[0].isdigit():
+                return int(coluna_str.split(' ')[0])
+                
+            # Padrão 4: Apenas os dígitos iniciais (ex: "1Pergunta")
+            elif coluna_str[0].isdigit():
+                digits = ''
+                for char in coluna_str:
+                    if char.isdigit():
+                        digits += char
+                    else:
+                        break
+                if digits:
+                    return int(digits)
+                    
+            # Padrão 5: "Questão Número" (ex: "Questão 1")
+            elif "questão" in coluna_str.lower() or "questao" in coluna_str.lower():
+                # Extrair números após "questão"
+                import re
+                match = re.search(r'quest[ãa]o\s*(\d+)', coluna_str.lower())
+                if match:
+                    return int(match.group(1))
+                    
+            # Se nenhum padrão for encontrado, retornar None
+            return None
+            
+        except Exception as e:
+            print(f"Erro ao extrair número da questão '{coluna}': {str(e)}")
+            return None
+    
     # Inverter a pontuação das questões invertidas
     for col in colunas_perguntas:
-        # Extrair o número da questão (considerar formatos como "1. Pergunta" ou "1 - Pergunta")
-        try:
-            # Tenta vários formatos possíveis de numeração
-            if '.' in str(col):
-                numero_questao = int(str(col).strip().split('.')[0])
-            elif '-' in str(col):
-                numero_questao = int(str(col).strip().split('-')[0])
-            elif ' ' in str(col):
-                numero_questao = int(str(col).strip().split(' ')[0])
+        numero_questao = extrair_numero_questao(col)
+        
+        if numero_questao in QUESTOES_INVERTIDAS:
+            # Verificar se a coluna contém valores numéricos
+            if pd.api.types.is_numeric_dtype(df_processado[col]):
+                # Inverter a escala (1->5, 2->4, 3->3, 4->2, 5->1)
+                df_processado[col] = 6 - df_processado[col]
             else:
-                numero_questao = int(str(col).strip()[0])
-                
-            if numero_questao in QUESTOES_INVERTIDAS:
-                df_processado[col] = 6 - df_processado[col]  # Inverte a escala (1->5, 2->4, 3->3, 4->2, 5->1)
-        except (ValueError, IndexError) as e:
-            continue
+                # Tentar converter para numérico primeiro
+                try:
+                    df_processado[col] = pd.to_numeric(df_processado[col], errors='coerce')
+                    # Inverter apenas valores não-NA
+                    mask = ~pd.isna(df_processado[col])
+                    df_processado.loc[mask, col] = 6 - df_processado.loc[mask, col]
+                except Exception as e:
+                    print(f"Erro ao processar questão invertida {col}: {str(e)}")
     
     return df_processado
 
