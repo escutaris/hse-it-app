@@ -677,7 +677,9 @@ else:
             width="medium"
         )
         
-        # Configuração para Prazo
+        # Configuração para Prazo com verificação de compatibilidade
+if hasattr(st.column_config, "DateColumn"):
+    try:
         prazo_config = st.column_config.DateColumn(
             "Prazo",
             help="Prazo para implementação das ações",
@@ -685,6 +687,20 @@ else:
             format="DD/MM/YYYY",
             width="medium"
         )
+    except:
+        # Fallback se houver erro com DateColumn
+        prazo_config = st.column_config.Column(
+            "Prazo",
+            help="Prazo para implementação das ações (formato: DD/MM/YYYY)",
+            width="medium"
+        )
+else:
+    # Fallback para versões sem DateColumn
+    prazo_config = st.column_config.Column(
+        "Prazo",
+        help="Prazo para implementação das ações (formato: DD/MM/YYYY)",
+        width="medium"
+    )
         
         # Usar as configurações na definição do data_editor
         edited_df = st.data_editor(
@@ -697,7 +713,7 @@ else:
                 "Sugestões de Ações Mitigantes": sugestoes_config,
                 "Outras Soluções": outras_solucoes_config,
                 "Responsável": responsavel_config,
-                "Prazo": prazo_config
+                "Prazo": prazo_config,
             },
             use_container_width=True,
             num_rows="dynamic",
