@@ -1,206 +1,859 @@
-import pandas as pd
 import streamlit as st
-from datetime import datetime
-from utils.constantes import QUESTOES_INVERTIDAS, DIMENSOES_HSE, DESCRICOES_DIMENSOES
+import pandas as pd
+import io
+import plotly.graph_objects as go
+import plotly.express as px
+from datetime import datetime, timedelta
+from utils.processamento import classificar_risco, padronizar_formato_data
 
-# Função para classificar os riscos com base na pontuação média
-@st.cache_data
-def classificar_risco(media):
-    if media <= 1:
-        return "Risco Muito Alto 🔴", "red"
-    elif media > 1 and media <= 2:
-        return "Risco Alto 🟠", "orange"
-    elif media > 2 and media <= 3:
-        return "Risco Moderado 🟡", "yellow"
-    elif media > 3 and media <= 4:
-        return "Risco Baixo 🟢", "green"
-    else:  # media > 4 (implícito no else)
-        return "Risco Muito Baixo 🟣", "purple"
+# Aplicar estilo consistente da Escutaris
+def aplicar_estilo_escutaris():
+    st.markdown("""
+    <style>
+    /* Cores principais */
+    :root {
+        --escutaris-verde: #5A713D;
+        --escutaris-cinza: #2E2F2F;
+        --escutaris-bege: #F5F0EB;
+        --escutaris-laranja: #FF5722;
+    }
+    
+    /* Títulos */
+    h1, h2, h3 {
+        color: var(--escutaris-verde) !important;
+        font-family: 'Helvetica Neue', Arial, sans-serif !important;
+    }
+    
+    /* Subtítulos */
+    h4, h5, h6 {
+        color: var(--escutaris-cinza) !important;
+        font-family: 'Helvetica Neue', Arial, sans-serif !important;
+    }
+    
+    /* Botões */
+    .stButton>button {
+        background-color: var(--escutaris-verde) !important;
+        color: white !important;
+        border-radius: 5px !important;
+    }
+    
+    /* Métricas */
+    div.css-1xarl3l.e16fv1kl1 {
+        background-color: white;
+        border-radius: 10px;
+        padding: 10px 15px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    /* Cards */
+    .card {
+        background-color: white;
+        border-radius: 10px;
+        padding: 15px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        margin-bottom: 15px;
+    }
+    
+    /* Abas */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 2px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        background-color: #f0f0f0;
+        border-radius: 4px 4px 0px 0px;
+        padding: 10px 20px;
+        border: none;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background-color: var(--escutaris-verde) !important;
+        color: white !important;
+    }
+    
+    /* Expander */
+    .streamlit-expanderHeader {
+        background-color: #f5f5f5;
+        border-radius: 5px;
+    }
+    
+    /* Progress bar */
+    .stProgress > div > div > div > div {
+        background-color: var(--escutaris-verde);
+    }
+    
+    /* Cor dos links */
+    a {
+        color: var(--escutaris-verde) !important;
+    }
+    
+    /* Formulário de ação */
+    .action-form {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        border-left: 4px solid var(--escutaris-verde);
+    }
+    
+    /* Status de risco */
+    .risco-muito-alto {
+        background-color: #f8d7da;
+        color: #721c24;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 0.9em;
+        font-weight: bold;
+    }
+    
+    .risco-alto {
+        background-color: #fff3cd;
+        color: #856404;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 0.9em;
+        font-weight: bold;
+    }
+    
+    .risco-moderado {
+        background-color: #fff3cd;
+        color: #856404;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 0.9em;
+    }
+    
+    .risco-baixo {
+        background-color: #d4edda;
+        color: #155724;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 0.9em;
+    }
+    
+    .risco-muito-baixo {
+        background-color: #d1ecf1;
+        color: #0c5460;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 0.9em;
+    }
+    
+    /* Tabela de plano de ação */
+    .tabela-plano-acao {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+    }
+    
+    .tabela-plano-acao th {
+        background-color: var(--escutaris-verde);
+        color: white;
+        text-align: left;
+        padding: 12px;
+        font-size: 0.9em;
+    }
+    
+    .tabela-plano-acao td {
+        padding: 10px;
+        border-bottom: 1px solid #ddd;
+        font-size: 0.9em;
+    }
+    
+    .tabela-plano-acao tr:nth-child(even) {
+        background-color: #f8f9fa;
+    }
+    
+    .tabela-plano-acao tr:hover {
+        background-color: #f1f1f1;
+    }
+    
+    /* Tooltip personalizado */
+    .tooltip {
+        position: relative;
+        display: inline-block;
+        border-bottom: 1px dotted #ccc;
+        cursor: help;
+    }
+    
+    .tooltip .tooltiptext {
+        visibility: hidden;
+        width: 200px;
+        background-color: #555;
+        color: #fff;
+        text-align: center;
+        border-radius: 6px;
+        padding: 5px;
+        position: absolute;
+        z-index: 1;
+        bottom: 125%;
+        left: 50%;
+        margin-left: -100px;
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+    
+    .tooltip:hover .tooltiptext {
+        visibility: visible;
+        opacity: 1;
+    }
+    
+    /* Melhoria visual para áreas de texto */
+    textarea {
+        border-radius: 5px;
+    }
+    
+    /* Caixa de informação destacada */
+    .info-box {
+        background-color: #F5F7F0;
+        border-left: 4px solid var(--escutaris-verde);
+        padding: 15px;
+        margin: 15px 0;
+        border-radius: 5px;
+    }
+    
+    /* Badge de nível de risco */
+    .badge-risk {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 15px;
+        font-size: 0.8em;
+        font-weight: bold;
+        margin: 5px 0;
+    }
+    
+    /* Ajustes para visualização mobile */
+    @media (max-width: 768px) {
+        .tabela-plano-acao th, .tabela-plano-acao td {
+            padding: 8px 5px;
+            font-size: 0.8em;
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-# Função para carregar e processar dados
-@st.cache_data
-def carregar_dados(uploaded_file):
-    # Determinar o tipo de arquivo e carregá-lo adequadamente
-    if uploaded_file.name.endswith('.csv'):
-        # Tentar detectar o separador (vírgula ou ponto-e-vírgula)
-        df = pd.read_csv(uploaded_file, sep=';' if ';' in uploaded_file.getvalue().decode('utf-8', errors='replace')[:1000] else ',')
-    else:
-        # Para arquivos Excel
-        try:
-            df = pd.read_excel(uploaded_file)
-        except Exception as e:
-            st.error(f"Erro ao carregar arquivo Excel: {str(e)}")
-            st.info("Certifique-se de que o arquivo está no formato .xlsx ou .xls correto.")
-            return None, None, None, None
-    
-    # Verificar se o DataFrame foi carregado corretamente
-    if df is None or len(df) == 0:
-        st.error("Não foi possível carregar dados do arquivo ou o arquivo está vazio.")
-        return None, None, None, None
-    
-    # Separar os dados de filtro e as perguntas
-    colunas_filtro = list(df.columns[:7])
-    if "Carimbo de data/hora" in colunas_filtro:
-        colunas_filtro.remove("Carimbo de data/hora")
-    
-    # Garantir que as colunas das perguntas são corretamente identificadas
-    colunas_perguntas = [col for col in df.columns if str(col).strip() and str(col).strip()[0].isdigit()]
-    
-    # Verificar se foram encontradas colunas de perguntas
-    if len(colunas_perguntas) == 0:
-        st.error("Não foram encontradas colunas de perguntas no formato correto (começando com números).")
-        st.info("O arquivo deve conter perguntas do HSE-IT no formato '1. Pergunta...'")
-        return None, None, None, None
-    
-    # Converter valores para numéricos, tratando erros
-    df_perguntas = df[colunas_perguntas]
-    for col in df_perguntas.columns:
-        df_perguntas[col] = pd.to_numeric(df_perguntas[col], errors='coerce')
-    
-    # Verificar se há muitos valores ausentes
-    valores_ausentes = df_perguntas.isna().sum().sum()
-    total_valores = df_perguntas.size
-    percentual_ausente = (valores_ausentes / total_valores) * 100
-    
-    if percentual_ausente > 30:  # Se mais de 30% dos dados estão ausentes
-        st.warning(f"Atenção: {percentual_ausente:.1f}% dos valores das respostas estão ausentes. Isso pode afetar a qualidade dos resultados.")
-    
-    return df, df_perguntas, colunas_filtro, colunas_perguntas
+# Aplicar o estilo
+aplicar_estilo_escutaris()
 
-# Função para processar os dados (incluindo inversão de questões)
-def processar_dados_hse(df_perguntas, colunas_perguntas):
-    # Copiar o dataframe para não modificar o original
-    df_processado = df_perguntas.copy()
-    
-    # Inverter a pontuação das questões invertidas
-    for col in colunas_perguntas:
-        # Extrair o número da questão (considerar formatos como "1. Pergunta" ou "1 - Pergunta")
-        try:
-            # Tenta vários formatos possíveis de numeração
-            if '.' in str(col):
-                numero_questao = int(str(col).strip().split('.')[0])
-            elif '-' in str(col):
-                numero_questao = int(str(col).strip().split('-')[0])
-            elif ' ' in str(col):
-                numero_questao = int(str(col).strip().split(' ')[0])
-            else:
-                numero_questao = int(str(col).strip()[0])
-                
-            if numero_questao in QUESTOES_INVERTIDAS:
-                df_processado[col] = 6 - df_processado[col]  # Inverte a escala (1->5, 2->4, 3->3, 4->2, 5->1)
-        except (ValueError, IndexError) as e:
-            continue
-    
-    return df_processado
+# Título da página
+st.title("Plano de Ação - HSE-IT")
 
-# Função para calcular resultados por dimensão
-@st.cache_data
-def calcular_resultados_dimensoes(df, df_perguntas_filtradas, colunas_perguntas):
-    # Processar dados (inverter questões necessárias)
-    df_processado = processar_dados_hse(df_perguntas_filtradas, colunas_perguntas)
-    
-    resultados = []
-    cores = []
-    
-    # Número total de respostas após filtragem
-    num_total_respostas = len(df_processado)
-    
-    # Calcular resultados para cada dimensão
-    for dimensao, numeros_questoes in DIMENSOES_HSE.items():
-        # Converter números de pergunta para índices de coluna
-        indices_validos = []
-        for q in numeros_questoes:
-            for col in colunas_perguntas:
-                # Melhorar a detecção de questões - considerar vários formatos
-                col_texto = str(col).strip()
-                if (col_texto.startswith(str(q) + ".") or 
-                    col_texto.startswith(str(q) + " ") or 
-                    col_texto.startswith(str(q) + "-")):
-                    indices_validos.append(col)
-                    break
-        
-        if indices_validos:
-            # Calcular média para esta dimensão
-            valores = df_processado[indices_validos].values.flatten()
-            valores = valores[~pd.isna(valores)]  # Remove NaN
-            
-            if len(valores) > 0:
-                media = valores.mean()
-                risco, cor = classificar_risco(media)
-                
-                resultados.append({
-                    "Dimensão": dimensao,
-                    "Descrição": DESCRICOES_DIMENSOES[dimensao],
-                    "Média": round(media, 2),
-                    "Risco": risco,
-                    "Número de Respostas": num_total_respostas,
-                    "Questões": numeros_questoes
-                })
-                cores.append(cor)
-            else:
-                # Adicionar um registro mesmo se não houver dados válidos
-                resultados.append({
-                    "Dimensão": dimensao,
-                    "Descrição": DESCRICOES_DIMENSOES[dimensao],
-                    "Média": None,
-                    "Risco": "Sem dados suficientes",
-                    "Número de Respostas": 0,
-                    "Questões": numeros_questoes
-                })
-                cores.append("gray")
-    
-    return resultados
+# Verificar se há dados para exibir
+if "df_resultados" not in st.session_state or st.session_state.df_resultados is None:
+    st.warning("Nenhum resultado disponível. Por favor, faça upload de um arquivo na página 'Upload de Dados'.")
+    st.stop()
 
-# Função aprimorada para padronizar o formato de data
-def padronizar_formato_data(data_input):
-    """
-    Converte uma entrada de data para um formato padrão DD/MM/YYYY.
-    Aceita strings em vários formatos ou objetos datetime.
+# Texto introdutório explicando o propósito do plano de ação
+st.markdown("""
+<div class="info-box">
+<p>Este plano de ação contém sugestões de medidas baseadas nos resultados da avaliação HSE-IT. 
+As sugestões devem ser adaptadas à realidade da sua organização e servir como ponto de partida
+para discussões com a gestão e equipe de saúde e segurança.</p> 
+
+<p>Utilize este conteúdo para subsidiar o Programa de Gerenciamento de Riscos (PGR) e demais 
+documentos pertinentes à saúde e segurança no trabalho.</p>
+</div>
+""", unsafe_allow_html=True)
+
+# Filtros para o plano de ação
+st.subheader("Filtros")
+
+# Recuperar os resultados
+df_resultados = st.session_state.df_resultados
+
+# Definir níveis de risco para filtrar
+niveis_risco = ["Risco Muito Alto 🔴", "Risco Alto 🟠", "Risco Moderado 🟡", "Risco Baixo 🟢", "Risco Muito Baixo 🟣"]
+
+# Definir filtros para o plano de ação
+col1, col2 = st.columns(2)
+
+with col1:
+    # Filtro por nível de risco
+    niveis_selecionados = st.multiselect(
+        "Filtrar por nível de risco:",
+        niveis_risco,
+        default=["Risco Muito Alto 🔴", "Risco Alto 🟠", "Risco Moderado 🟡"],
+        help="Selecione os níveis de risco que deseja incluir no plano de ação"
+    )
     
-    Args:
-        data_input: String de data ou objeto datetime
-        
-    Returns:
-        String formatada como DD/MM/YYYY ou None se falhar
-    """
-    # Se for None ou vazio, retorna None
-    if data_input is None or (isinstance(data_input, str) and data_input.strip() == ""):
-        return None
-    
-    # Se já for um objeto datetime, formata diretamente
-    if isinstance(data_input, datetime):
-        return data_input.strftime("%d/%m/%Y")
-    
-    # Converter para string se não for
-    data_str = str(data_input).strip()
-    
-    # Lista de formatos de data a serem tentados (do mais comum ao menos comum)
-    formatos_data = [
-        "%d/%m/%Y",    # 31/12/2023
-        "%Y-%m-%d",    # 2023-12-31
-        "%d-%m-%Y",    # 31-12-2023
-        "%m/%d/%Y",    # 12/31/2023
-        "%d.%m.%Y",    # 31.12.2023
-        "%Y/%m/%d",    # 2023/12/31
-        "%d/%m/%y",    # 31/12/23
-        "%y-%m-%d",    # 23-12-31
-        "%m-%d-%Y",    # 12-31-2023
-        "%B %d, %Y",   # December 31, 2023
-        "%d %B %Y",    # 31 December 2023
-        "%Y%m%d",      # 20231231
+    # Adicionar nota sobre níveis opcionais
+    st.caption("Nota: Os níveis 'Risco Baixo 🟢' e 'Risco Muito Baixo 🟣' são opcionais e podem ser incluídos conforme necessidade da organização.")
+
+with col2:
+    # Filtro por dimensão
+    dimensoes = df_resultados["Dimensão"].unique()
+    dimensoes_selecionadas = st.multiselect(
+        "Filtrar por dimensão:",
+        dimensoes,
+        default=list(dimensoes),
+        help="Selecione as dimensões que deseja incluir no plano de ação"
+    )
+
+# Criar dataframe para conter os dados do plano de ação
+def gerar_plano_acao_tabular():
+    # Filtrar resultados conforme seleções
+    df_filtrado = df_resultados[
+        (df_resultados["Dimensão"].isin(dimensoes_selecionadas)) &
+        (df_resultados["Risco"].isin(niveis_selecionados))
     ]
     
-    # Tentar cada formato
-    for formato in formatos_data:
-        try:
-            data_obj = datetime.strptime(data_str, formato)
-            # Validar se é uma data plausível (não muito no passado ou futuro)
-            ano_atual = datetime.now().year
-            if data_obj.year < 2000 or data_obj.year > ano_atual + 10:
-                continue  # Provavelmente uma interpretação incorreta
-            return data_obj.strftime("%d/%m/%Y")
-        except ValueError:
-            continue
+    # Se não há dados após filtro, retornar DataFrame vazio com as colunas corretas
+    if df_filtrado.empty:
+        return pd.DataFrame(columns=[
+            "Domínio (Fator Psicossocial)", 
+            "Média", 
+            "Nível de Risco",
+            "Riscos Potenciais", 
+            "Sugestões de Ações Mitigantes", 
+            "Outras Soluções", 
+            "Responsável", 
+            "Prazo"
+        ])
     
-    # Se chegou aqui, não conseguiu converter
-    return None
+    # Criar o plano de ação em formato tabular
+    plano_acao_rows = []
+    
+    # Mapeamento de riscos potenciais para cada dimensão
+    riscos_potenciais = {
+        "Demanda": "Sobrecarga de trabalho levando a estresse, burnout, fadiga, erros operacionais e potencial adoecimento físico e mental.",
+        "Controle": "Falta de autonomia e participação nas decisões, gerando desmotivação, alienação, insatisfação e menor engajamento.",
+        "Apoio da Chefia": "Liderança inadequada causando desmotivação, conflitos, falta de direcionamento e baixo desempenho da equipe.",
+        "Apoio dos Colegas": "Ambiente de trabalho não colaborativo, levando a isolamento, dificuldades de integração e baixa produtividade em equipe.",
+        "Relacionamentos": "Conflitos interpessoais, assédio moral/sexual, violência e deterioração do clima organizacional.",
+        "Função": "Falta de clareza sobre papéis e responsabilidades, causando retrabalho, conflitos, ineficiência e estresse.",
+        "Mudança": "Resistência, ansiedade e insegurança frente a mudanças organizacionais, prejudicando adaptação e implementação."
+    }
+    
+    # Definir ações mitigantes para cada nível de risco e dimensão
+    acoes_mitigantes = {
+        "Demanda": {
+            "Risco Muito Alto 🔴": [
+                "Realizar auditoria completa da distribuição de carga de trabalho",
+                "Implementar sistema de gestão de tarefas e priorização",
+                "Reavaliar prazos e expectativas de produtividade",
+                "Contratar pessoal adicional para áreas sobrecarregadas"
+            ],
+            "Risco Alto 🟠": [
+                "Mapear atividades e identificar gargalos de processo",
+                "Implementar ferramentas para melhor organização do trabalho",
+                "Revisar e ajustar prazos de entregas e metas",
+                "Capacitar gestores em gerenciamento de carga de trabalho"
+            ],
+            "Risco Moderado 🟡": [
+                "Promover treinamentos de gestão do tempo e priorização",
+                "Revisar distribuição de tarefas entre membros da equipe",
+                "Implementar pausas regulares durante a jornada de trabalho"
+            ],
+            "Risco Baixo 🟢": [
+                "Manter monitoramento regular das demandas de trabalho",
+                "Realizar check-ins periódicos sobre volume de trabalho"
+            ],
+            "Risco Muito Baixo 🟣": [
+                "Documentar boas práticas atuais de gestão de demandas",
+                "Manter práticas de gestão de demandas e continuar monitorando"
+            ]
+        },
+        "Controle": {
+            "Risco Muito Alto 🔴": [
+                "Redesenhar processos para aumentar a autonomia dos trabalhadores",
+                "Implementar esquemas de trabalho flexível",
+                "Revisar políticas de microgerenciamento",
+                "Treinar gestores em delegação efetiva"
+            ],
+            "Risco Alto 🟠": [
+                "Identificar áreas onde os trabalhadores podem ter mais controle",
+                "Envolver colaboradores no planejamento de metas e métodos",
+                "Implementar sistema de sugestões para melhorias nos processos",
+                "Oferecer opções de horários flexíveis"
+            ],
+            "Risco Moderado 🟡": [
+                "Aumentar gradualmente a autonomia nas decisões rotineiras",
+                "Solicitar feedback regular sobre nível de controle no trabalho",
+                "Implementar projetos-piloto para testar maior autonomia"
+            ],
+            "Risco Baixo 🟢": [
+                "Manter boas práticas de autonomia",
+                "Revisar periodicamente áreas onde o controle pode ser ampliado"
+            ],
+            "Risco Muito Baixo 🟣": [
+                "Documentar práticas bem-sucedidas de autonomia",
+                "Manter cultura de confiança e delegação"
+            ]
+        },
+        "Apoio da Chefia": {
+            "Risco Muito Alto 🔴": [
+                "Implementar programa estruturado de desenvolvimento de lideranças",
+                "Realizar avaliação 360° para gestores",
+                "Estabelecer canais de comunicação direta entre colaboradores e direção",
+                "Revisar políticas de promoção para valorizar bons líderes"
+            ],
+            "Risco Alto 🟠": [
+                "Treinar gestores em habilidades de suporte e feedback",
+                "Implementar reuniões regulares one-on-one com liderados",
+                "Estabelecer expectativas claras para comportamentos de liderança",
+                "Criar fóruns para líderes compartilharem desafios e soluções"
+            ],
+            "Risco Moderado 🟡": [
+                "Revisar e melhorar as práticas de feedback das lideranças",
+                "Promover workshops sobre comunicação efetiva",
+                "Oferecer recursos para líderes apoiarem suas equipes"
+            ],
+            "Risco Baixo 🟢": [
+                "Manter programas de desenvolvimento de lideranças",
+                "Reconhecer e celebrar boas práticas de liderança"
+            ],
+            "Risco Muito Baixo 🟣": [
+                "Documentar práticas exemplares de liderança",
+                "Utilizar líderes como mentores para novos gestores"
+            ]
+        },
+        "Apoio dos Colegas": {
+            "Risco Muito Alto 🔴": [
+                "Implementar programas estruturados de team building",
+                "Revisar a composição e dinâmica das equipes",
+                "Estabelecer facilitadores de equipe para melhorar integração",
+                "Criar espaços físicos e virtuais para colaboração"
+            ],
+            "Risco Alto 🟠": [
+                "Promover atividades regulares de integração de equipes",
+                "Treinar em habilidades de trabalho em equipe e comunicação",
+                "Estabelecer objetivos compartilhados que incentivem a colaboração",
+                "Revisar processos que possam estar criando competição indesejada"
+            ],
+            "Risco Moderado 🟡": [
+                "Implementar reuniões regulares de equipe para compartilhamento",
+                "Criar projetos colaborativos entre diferentes membros",
+                "Oferecer oportunidades para pessoas se conhecerem melhor"
+            ],
+            "Risco Baixo 🟢": [
+                "Manter momentos regulares de integração",
+                "Monitorar dinâmicas de equipe, especialmente com novos membros"
+            ],
+            "Risco Muito Baixo 🟣": [
+                "Documentar boas práticas de colaboração",
+                "Manter ambiente de confiança e colaboração"
+            ]
+        },
+        "Relacionamentos": {
+            "Risco Muito Alto 🔴": [
+                "Implementar política de tolerância zero para assédio e comportamentos inadequados",
+                "Criar canais confidenciais para denúncias",
+                "Treinar todos os colaboradores em respeito e diversidade",
+                "Estabelecer mediação de conflitos com profissionais externos"
+            ],
+            "Risco Alto 🟠": [
+                "Desenvolver política clara sobre comportamentos aceitáveis",
+                "Treinar gestores na identificação e gestão de conflitos",
+                "Implementar processos estruturados para resolução de conflitos",
+                "Promover diálogo sobre relacionamentos saudáveis no trabalho"
+            ],
+            "Risco Moderado 🟡": [
+                "Realizar workshops sobre comunicação não-violenta",
+                "Estabelecer acordos de equipe sobre comportamentos esperados",
+                "Promover atividades que construam confiança entre colegas"
+            ],
+            "Risco Baixo 🟢": [
+                "Manter comunicação regular sobre respeito no ambiente de trabalho",
+                "Incorporar avaliação de relacionamentos nas pesquisas de clima"
+            ],
+            "Risco Muito Baixo 🟣": [
+                "Documentar boas práticas de relacionamentos saudáveis",
+                "Manter monitoramento contínuo do clima relacional"
+            ]
+        },
+        "Função": {
+            "Risco Muito Alto 🔴": [
+                "Realizar revisão completa de descrições de cargos e responsabilidades",
+                "Implementar processo de clarificação de funções para toda a organização",
+                "Treinar gestores em delegação clara e definição de expectativas",
+                "Estabelecer processos para resolver conflitos de papéis"
+            ],
+            "Risco Alto 🟠": [
+                "Revisar e atualizar descrições de cargo",
+                "Implementar reuniões para esclarecer expectativas",
+                "Criar matriz RACI para projetos e processos",
+                "Treinar equipes em comunicação sobre papéis e responsabilidades"
+            ],
+            "Risco Moderado 🟡": [
+                "Revisar processos onde ocorrem conflitos de funções",
+                "Promover workshops para clarificar interfaces entre áreas",
+                "Estabelecer fóruns para discutir e esclarecer papéis em projetos"
+            ],
+            "Risco Baixo 🟢": [
+                "Manter atualizações periódicas de responsabilidades",
+                "Incluir clareza de papéis nas avaliações de desempenho"
+            ],
+            "Risco Muito Baixo 🟣": [
+                "Documentar boas práticas de clareza de funções",
+                "Manter cultura de transparência sobre papéis e responsabilidades"
+            ]
+        },
+        "Mudança": {
+            "Risco Muito Alto 🔴": [
+                "Implementar metodologia estruturada de gestão de mudanças",
+                "Criar comitê representativo para planejamento de mudanças",
+                "Estabelecer múltiplos canais de comunicação sobre processos de mudança",
+                "Treinar gestores em liderança durante transformações"
+            ],
+            "Risco Alto 🟠": [
+                "Desenvolver plano de comunicação para mudanças organizacionais",
+                "Envolver representantes de diferentes níveis no planejamento",
+                "Implementar feedbacks regulares durante processos de mudança",
+                "Oferecer suporte adicional para equipes mais afetadas"
+            ],
+            "Risco Moderado 🟡": [
+                "Melhorar a transparência sobre razões das mudanças",
+                "Criar fóruns para esclarecer dúvidas sobre transformações",
+                "Celebrar pequenas vitórias durante processos de mudança"
+            ],
+            "Risco Baixo 🟢": [
+                "Manter comunicação proativa sobre possíveis mudanças",
+                "Oferecer oportunidades regulares para feedback durante transformações"
+            ],
+            "Risco Muito Baixo 🟣": [
+                "Documentar práticas bem-sucedidas de gestão de mudanças",
+                "Manter cultura de adaptabilidade e melhoria contínua"
+            ]
+        }
+    }
+    
+    # Para cada dimensão nos resultados filtrados, gerar linhas do plano de ação
+    for _, row in df_filtrado.iterrows():
+        dimensao = row["Dimensão"]
+        media = row["Média"]
+        nivel_risco = row["Risco"]
+        
+        # Obter riscos potenciais para a dimensão
+        risco_potencial = riscos_potenciais.get(dimensao, "Riscos não especificados para esta dimensão.")
+        
+        # Obter ações mitigantes para o nível de risco e dimensão
+        acoes = acoes_mitigantes.get(dimensao, {}).get(nivel_risco, ["Não há sugestões específicas para este nível de risco."])
+        acoes_formatadas = "\n".join([f"• {acao}" for acao in acoes])
+        
+        # Adicionar à lista de linhas
+        plano_acao_rows.append({
+            "Domínio (Fator Psicossocial)": dimensao,
+            "Média": media,
+            "Nível de Risco": nivel_risco,
+            "Riscos Potenciais": risco_potencial,
+            "Sugestões de Ações Mitigantes": acoes_formatadas,
+            "Outras Soluções": "",
+            "Responsável": "",
+            "Prazo": ""
+        })
+    
+    return pd.DataFrame(plano_acao_rows)
+
+# Gerar o plano de ação
+df_plano = gerar_plano_acao_tabular()
+
+# Verificar se há resultados após a filtragem
+if df_plano.empty:
+    st.warning("Não foram encontrados resultados para os filtros selecionados. Por favor, ajuste os filtros.")
+else:
+    # Exibir o plano de ação em formato tabular editável
+    st.subheader("Plano de Ação - HSE-IT")
+    
+    # Inicializar ou recuperar o plano editável da sessão
+    if "plano_editavel" not in st.session_state:
+        st.session_state.plano_editavel = df_plano.copy()
+    elif len(st.session_state.plano_editavel) != len(df_plano):
+        # Se os filtros mudaram e o tamanho mudou, atualizar o plano
+        st.session_state.plano_editavel = df_plano.copy()
+    
+    # Criar uma visualização editável do plano
+    edited_df = st.data_editor(
+        st.session_state.plano_editavel,
+        column_config={
+            "Domínio (Fator Psicossocial)": st.column_config.TextColumn(
+                "Domínio (Fator Psicossocial)",
+                help="Dimensão do HSE-IT avaliada",
+                disabled=True,
+                width="medium"
+            ),
+            "Média": st.column_config.NumberColumn(
+                "Média",
+                help="Pontuação média obtida na avaliação (1-5)",
+                format="%.2f",
+                disabled=True,
+                width="small"
+            ),
+            "Nível de Risco": st.column_config.TextColumn(
+                "Nível de Risco",
+                help="Classificação do nível de risco baseada na média",
+                disabled=True,
+                width="medium"
+            ),
+            "Riscos Potenciais": st.column_config.TextColumn(
+                "Riscos Potenciais",
+                help="Consequências potenciais relacionadas a este fator psicossocial",
+                width="large"
+            ),
+            "Sugestões de Ações Mitigantes": st.column_config.TextAreaColumn(
+                "Sugestões de Ações Mitigantes",
+                help="Ações sugeridas para mitigar os riscos identificados",
+                width="large",
+                height="medium"
+            ),
+            "Outras Soluções": st.column_config.TextAreaColumn(
+                "Outras Soluções",
+                help="Adicione outras soluções específicas para sua organização",
+                width="large",
+                height="medium"
+            ),
+            "Responsável": st.column_config.TextColumn(
+                "Responsável",
+                help="Pessoa ou equipe responsável pela implementação",
+                width="medium"
+            ),
+            "Prazo": st.column_config.DateColumn(
+                "Prazo",
+                help="Prazo para implementação das ações",
+                min_value=datetime.now().date(),
+                format="DD/MM/YYYY",
+                width="medium"
+            )
+        },
+        use_container_width=True,
+        num_rows="dynamic",
+        hide_index=True
+    )
+    
+    # Atualizar o estado da sessão com as edições
+    st.session_state.plano_editavel = edited_df
+    
+    # Informações adicionais
+    with st.expander("Informações sobre o Plano de Ação"):
+        st.markdown("""
+        ### Como utilizar este plano de ação:
+        
+        1. **Revise os riscos potenciais**: Verifique se os riscos descritos se aplicam à sua realidade organizacional.
+        
+        2. **Ajuste as sugestões de ações**: Modifique as ações sugeridas conforme necessário para adequá-las ao seu contexto.
+        
+        3. **Adicione soluções específicas**: Use o campo "Outras Soluções" para incluir medidas personalizadas para sua organização.
+        
+        4. **Defina responsáveis e prazos**: Atribua claramente cada ação a um responsável e estabeleça prazos realistas.
+        
+        5. **Exporte o plano**: Use o botão abaixo para exportar o plano completo para Excel e compartilhar com a equipe de SST.
+        
+        6. **Integre ao PGR**: Incorpore estas ações ao Programa de Gerenciamento de Riscos da empresa.
+        
+        ### Níveis de prioridade recomendados:
+        
+        - **Risco Muito Alto** 🔴: Prioridade imediata (1-3 meses)
+        - **Risco Alto** 🟠: Prioridade alta (3-6 meses)
+        - **Risco Moderado** 🟡: Prioridade média (6-12 meses)
+        - **Risco Baixo** 🟢: Prioridade baixa (12-18 meses)
+        - **Risco Muito Baixo** 🟣: Manutenção de boas práticas (revisão anual)
+        """)
+    
+    # Função para exportar o plano para Excel
+    def exportar_para_excel(df):
+        output = io.BytesIO()
+        
+        try:
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                workbook = writer.book
+                
+                # Formatar e exportar o plano de ação
+                df.to_excel(writer, sheet_name='Plano de Ação HSE-IT', index=False)
+                worksheet = writer.sheets['Plano de Ação HSE-IT']
+                
+                # Definir formatos
+                header_format = workbook.add_format({
+                    'bold': True,
+                    'text_wrap': True,
+                    'valign': 'top',
+                    'fg_color': '#5A713D',
+                    'font_color': 'white',
+                    'border': 1
+                })
+                
+                wrap_format = workbook.add_format({
+                    'text_wrap': True,
+                    'valign': 'top',
+                    'border': 1
+                })
+                
+                # Formatos para níveis de risco
+                risco_formats = {
+                    'Risco Muito Alto 🔴': workbook.add_format({'bg_color': '#FF6B6B', 'bold': True, 'border': 1}),
+                    'Risco Alto 🟠': workbook.add_format({'bg_color': '#FFA500', 'bold': True, 'border': 1}),
+                    'Risco Moderado 🟡': workbook.add_format({'bg_color': '#FFFF00', 'border': 1}),
+                    'Risco Baixo 🟢': workbook.add_format({'bg_color': '#90EE90', 'border': 1}),
+                    'Risco Muito Baixo 🟣': workbook.add_format({'bg_color': '#B0E0E6', 'border': 1})
+                }
+                
+                # Configurar largura das colunas
+                worksheet.set_column('A:A', 25)  # Domínio
+                worksheet.set_column('B:B', 10)  # Média
+                worksheet.set_column('C:C', 15)  # Nível de Risco
+                worksheet.set_column('D:D', 40)  # Riscos Potenciais
+                worksheet.set_column('E:E', 50)  # Sugestões de Ações
+                worksheet.set_column('F:F', 40)  # Outras Soluções
+                worksheet.set_column('G:G', 15)  # Responsável
+                worksheet.set_column('H:H', 15)  # Prazo
+                
+                # Adicionar cabeçalhos formatados
+                for col_num, value in enumerate(df.columns.values):
+                    worksheet.write(0, col_num, value, header_format)
+                
+                # Formatar células com quebra de linha
+                for row_num, row in enumerate(df.itertuples(), 1):
+                    worksheet.write(row_num, 0, row._1, wrap_format)  # Domínio
+                    worksheet.write(row_num, 1, row._2, wrap_format)  # Média
+                    
+                    # Aplicar formatos de nível de risco
+                    nivel_risco = row._3
+                    if nivel_risco in risco_formats:
+                        worksheet.write(row_num, 2, nivel_risco, risco_formats[nivel_risco])
+                    else:
+                        worksheet.write(row_num, 2, nivel_risco, wrap_format)
+                    
+                    worksheet.write(row_num, 3, row._4, wrap_format)  # Riscos Potenciais
+                    worksheet.write(row_num, 4, row._5, wrap_format)  # Sugestões
+                    worksheet.write(row_num, 5, row._6, wrap_format)  # Outras Soluções
+                    worksheet.write(row_num, 6, row._7, wrap_format)  # Responsável
+                    worksheet.write(row_num, 7, row._8, wrap_format)  # Prazo
+                
+                # Ajustar altura das linhas para acomodar conteúdo
+                for i in range(1, len(df) + 1):
+                    worksheet.set_row(i, 80)  # Altura em pontos
+                
+                # Adicionar filtros
+                worksheet.autofilter(0, 0, len(df), len(df.columns) - 1)
+                
+                # Congelar a primeira linha
+                worksheet.freeze_panes(1, 0)
+                
+                # Adicionar aba de instruções
+                worksheet_info = workbook.add_worksheet('Instruções')
+                title_format = workbook.add_format({
+                    'bold': True,
+                    'font_size': 14,
+                    'align': 'center',
+                    'valign': 'vcenter',
+                    'fg_color': '#5A713D',
+                    'font_color': 'white',
+                    'border': 1
+                })
+                
+                subtitle_format = workbook.add_format({
+                    'bold': True,
+                    'font_size': 12,
+                    'fg_color': '#E8EDDF'
+                })
+                
+                worksheet_info.set_column('A:A', 15)
+                worksheet_info.set_column('B:B', 60)
+                
+                # Título
+                worksheet_info.merge_range('A1:B1', 'PLANO DE AÇÃO - HSE-IT: INSTRUÇÕES', title_format)
+                
+                # Conteúdo
+                linha = 3
+                worksheet_info.write(linha, 0, 'Objetivo:', subtitle_format)
+                linha += 1
+                worksheet_info.write(linha, 0, '')
+                worksheet_info.write(linha, 1, 'Este plano de ação contém sugestões de medidas baseadas nos resultados da avaliação HSE-IT. As sugestões devem ser adaptadas à realidade da sua organização e servir como ponto de partida para discussões com a gestão e equipe de saúde e segurança.')
+                
+                linha += 2
+                worksheet_info.write(linha, 0, 'Como utilizar:', subtitle_format)
+                linha += 1
+                instrucoes = [
+                    '1. Revise os riscos potenciais para verificar se se aplicam à sua realidade organizacional.',
+                    '2. Ajuste as sugestões de ações conforme necessário para adequá-las ao seu contexto.',
+                    '3. Adicione soluções específicas no campo "Outras Soluções".',
+                    '4. Defina responsáveis e prazos para cada ação.',
+                    '5. Integre as ações ao Programa de Gerenciamento de Riscos (PGR) da empresa.',
+                    '6. Monitore a implementação e eficácia das ações ao longo do tempo.'
+                ]
+                
+                for instrucao in instrucoes:
+                    worksheet_info.write(linha, 1, instrucao)
+                    linha += 1
+                
+                linha += 1
+                worksheet_info.write(linha, 0, 'Níveis de risco:', subtitle_format)
+                linha += 1
+                
+                niveis = [
+                    {'nivel': 'Risco Muito Alto 🔴', 'descricao': 'Prioridade imediata. Requer intervenção em 1-3 meses.', 'formato': risco_formats['Risco Muito Alto 🔴']},
+                    {'nivel': 'Risco Alto 🟠', 'descricao': 'Prioridade alta. Implementar ações em 3-6 meses.', 'formato': risco_formats['Risco Alto 🟠']},
+                    {'nivel': 'Risco Moderado 🟡', 'descricao': 'Prioridade média. Implementar ações em 6-12 meses.', 'formato': risco_formats['Risco Moderado 🟡']},
+                    {'nivel': 'Risco Baixo 🟢', 'descricao': 'Prioridade baixa. Implementar ações em 12-18 meses.', 'formato': risco_formats['Risco Baixo 🟢']},
+                    {'nivel': 'Risco Muito Baixo 🟣', 'descricao': 'Manutenção. Manter boas práticas e revisar anualmente.', 'formato': risco_formats['Risco Muito Baixo 🟣']}
+                ]
+                
+                for n in niveis:
+                    worksheet_info.write(linha, 0, n['nivel'], n['formato'])
+                    worksheet_info.write(linha, 1, n['descricao'])
+                    linha += 1
+                
+                linha += 1
+                worksheet_info.write(linha, 0, 'Observações:', subtitle_format)
+                linha += 1
+                worksheet_info.write(linha, 1, 'O plano de ação deve ser revisado e aprovado pela equipe de Saúde e Segurança do Trabalho e pela gestão da organização.')
+                linha += 1
+                worksheet_info.write(linha, 1, 'As ações devem ser implementadas conforme a prioridade definida, mas também considerando a viabilidade prática e os recursos disponíveis.')
+                linha += 1
+                worksheet_info.write(linha, 1, 'Recomenda-se revisar periodicamente o progresso das ações e ajustar o plano conforme necessário.')
+                
+                # Adicionar aba com dados de diagnóstico
+                df_resultados.to_excel(writer, sheet_name='Diagnóstico HSE-IT', index=False)
+                worksheet_diag = writer.sheets['Diagnóstico HSE-IT']
+                
+                # Formatar cabeçalhos
+                for col_num, value in enumerate(df_resultados.columns.values):
+                    worksheet_diag.write(0, col_num, value, header_format)
+                
+                # Configurar largura das colunas
+                worksheet_diag.set_column('A:A', 25)  # Dimensão
+                worksheet_diag.set_column('B:B', 40)  # Descrição
+                worksheet_diag.set_column('C:C', 10)  # Média
+                worksheet_diag.set_column('D:D', 15)  # Risco
+                worksheet_diag.set_column('E:E', 15)  # Número de Respostas
+                
+                # Formatar células de risco
+                for row_num, row in enumerate(df_resultados.itertuples(), 1):
+                    # Aplicar formatos de nível de risco para a coluna de risco
+                    nivel_risco = row.Risco
+                    if nivel_risco in risco_formats:
+                        worksheet_diag.write(row_num, 3, nivel_risco, risco_formats[nivel_risco])
+            
+            output.seek(0)
+            return output
+        
+        except Exception as e:
+            st.error(f"Erro ao gerar o arquivo Excel: {str(e)}")
+            return None
+    
+    # Botão para exportar o plano em Excel
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        if st.button("Exportar para Excel", type="primary", use_container_width=True):
+            data_atual = datetime.now().strftime("%d%m%Y")
+            excel_data = exportar_para_excel(edited_df)
+            
+            if excel_data:
+                st.success("Plano de ação gerado com sucesso!")
+                # Salvar no estado da sessão para o botão de download
+                st.session_state.excel_plano = excel_data
+                st.session_state.excel_plano_ready = True
+                st.balloons()  # Efeito visual para confirmar sucesso
+    
+    with col2:
+        if st.session_state.get("excel_plano_ready", False) and st.session_state.get("excel_plano", None) is not None:
+            data_geracao = datetime.now().strftime("%d%m%Y")
+            st.download_button(
+                label="Baixar Plano de Ação HSE-IT",
+                data=st.session_state.excel_plano,
+                file_name=f"plano_acao_hse_it_{data_geracao}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                help="Baixe o arquivo Excel contendo o plano de ação completo"
+            )
+        else:
+            st.info("Clique em 'Exportar para Excel' para gerar o arquivo para download")
