@@ -106,7 +106,7 @@ aplicar_estilo_escutaris()
 st.title("Resultados da Avaliação HSE-IT")
 
 # Verificar se há dados para exibir - CORRIGIDO: Uso seguro de session_state
-if not st.session_state.get("df_resultados") is not None:
+if "df_resultados" not in st.session_state or st.session_state.get("df_resultados") is None:
     st.warning("Nenhum dado carregado ainda. Por favor, faça upload de um arquivo na página 'Upload de Dados'.")
     st.stop()
 
@@ -442,6 +442,7 @@ def mostrar_detalhes_dimensao(df_resultados):
                     st.markdown(f"**Média**: {media:.2f}")
                     st.markdown(f"**Nível de Risco**: <span style='color:{cor};'>{risco}</span>", unsafe_allow_html=True)
                     
+                    # CORREÇÃO: Substituir 'lightpurple' por '#B0A8E3' (roxo claro)
                     # Adicionar medidor visual
                     fig = go.Figure(go.Indicator(
                         mode = "gauge+number",
@@ -455,7 +456,7 @@ def mostrar_detalhes_dimensao(df_resultados):
                                 {'range': [1, 2], 'color': 'orange'},
                                 {'range': [2, 3], 'color': 'yellow'},
                                 {'range': [3, 4], 'color': 'lightgreen'},
-                                {'range': [4, 5], 'color': 'lightpurple'}
+                                {'range': [4, 5], 'color': '#B0A8E3'}  # CORRIGIDO: Usar código hex para roxo claro
                             ]
                         }
                     ))
@@ -576,7 +577,7 @@ def criar_analise_demografica(df, df_perguntas, colunas_perguntas):
     with st.spinner(f"Analisando dados por {col_demo}..."):
         df_demografico = analisar_por_demografia(df, col_demo)
     
-    if df_demografico is not None:
+    if df_demografico is not None and not df_demografico.empty:  # CORRIGIDO: Verificação de DataFrame vazio
         # Verificar a quantidade de valores únicos para escolher a melhor visualização
         valores_unicos = df_demografico[col_demo].unique()
         
@@ -645,6 +646,7 @@ def criar_analise_demografica(df, df_perguntas, colunas_perguntas):
             with compare_tab:
                 try:
                     # Criar gráfico de radar para comparação
+                    st.subheader(f"Compar# Criar gráfico de radar para comparação
                     st.subheader(f"Comparação por {col_demo}")
                     
                     # Seleção de grupos para comparar
@@ -748,7 +750,7 @@ try:
             st.experimental_rerun()
 
     elif view_mode == "Análise Demográfica":
-        # Verificar se há dados demográficos - CORRIGIDO: Verificação segura
+        # CORREÇÃO: Verificação adequada dos dados demográficos
         df = st.session_state.get("df")
         df_perguntas = st.session_state.get("df_perguntas")
         colunas_perguntas = st.session_state.get("colunas_perguntas")
