@@ -646,7 +646,7 @@ def criar_analise_demografica(df, df_perguntas, colunas_perguntas):
             with compare_tab:
                 try:
                     # Criar gráfico de radar para comparação
-                    st.subheader(f"Compar# Criar gráfico de radar para comparação
+                    st.subheader(f"Comparar: Criar gráfico de radar para comparação")
                     st.subheader(f"Comparação por {col_demo}")
                     
                     # Seleção de grupos para comparar
