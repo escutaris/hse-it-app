@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd  # Adicionado import do pandas que estava faltando
 from utils.constantes import DIMENSOES_HSE, DESCRICOES_DIMENSOES, QUESTOES_INVERTIDAS
 
 # Título da página
@@ -57,20 +58,21 @@ for dimensao, questoes in DIMENSOES_HSE.items():
                 28: "O pessoal é sempre consultado sobre mudança no trabalho",
                 29: "Posso falar com o meu chefe imediato sobre algo no trabalho que me transtornou ou irritou",
                 30: "O meu horário pode ser flexível",
-               31: "Os meus colegas estão dispostos a ouvir os meus problemas relacionados com o trabalho",
-               32: "Quando são efetuadas mudanças no trabalho, sei claramente como resultarão na prática",
-               33: "Recebo apoio durante trabalho que pode ser emocionalmente exigente",
-               34: "Os relacionamentos no trabalho estão sob pressão",
-               35: "O meu chefe imediato encoraja-me no trabalho"
-           }
-           
-           if q in questoes_texto:
-               texto_questao = questoes_texto[q]
-               
-           if q in QUESTOES_INVERTIDAS:
-               st.write(f"- {q}: {texto_questao} *(escala invertida)*")
-           else:
-               st.write(f"- {q}: {texto_questao}")
+                31: "Os meus colegas estão dispostos a ouvir os meus problemas relacionados com o trabalho",
+                32: "Quando são efetuadas mudanças no trabalho, sei claramente como resultarão na prática",
+                33: "Recebo apoio durante trabalho que pode ser emocionalmente exigente",
+                34: "Os relacionamentos no trabalho estão sob pressão",
+                35: "O meu chefe imediato encoraja-me no trabalho"
+            }
+            
+            # Corrigido o problema de indentação aqui
+            if q in questoes_texto:
+                texto_questao = questoes_texto[q]
+                
+            if q in QUESTOES_INVERTIDAS:
+                st.write(f"- {q}: {texto_questao} *(escala invertida)*")
+            else:
+                st.write(f"- {q}: {texto_questao}")
 
 # Explicação sobre a interpretação dos resultados
 st.subheader("Interpretação dos Resultados")
