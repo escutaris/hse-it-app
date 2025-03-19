@@ -151,6 +151,72 @@ def calcular_resultados_dimensoes(df, df_perguntas_filtradas, colunas_perguntas)
     
     return resultados
 
+# Adicionar função gerar_sugestoes_acoes
+def gerar_sugestoes_acoes(df_resultados):
+    # Dicionário com sugestões de ações para cada dimensão por nível de risco
+    sugestoes_por_dimensao = {
+        "Demanda": {
+            "Risco Muito Alto": [
+                "Realizar auditoria completa da distribuição de carga de trabalho",
+                "Implementar sistema de gestão de tarefas e priorização",
+                "Reavaliar prazos e expectativas de produtividade",
+                "Contratar pessoal adicional para áreas sobrecarregadas",
+                "Implementar pausas obrigatórias durante o dia de trabalho"
+            ],
+            "Risco Alto": [
+                "Mapear atividades e identificar gargalos de processo",
+                "Implementar ferramentas para melhor organização e planejamento do trabalho",
+                "Revisar e ajustar prazos de entregas e metas",
+                "Capacitar gestores em gerenciamento de carga de trabalho das equipes"
+            ],
+            "Risco Moderado": [
+                "Promover treinamentos de gestão do tempo e priorização",
+                "Revisar distribuição de tarefas entre membros da equipe",
+                "Estabelecer momentos regulares para feedback sobre carga de trabalho"
+            ],
+            "Risco Baixo": [
+                "Manter monitoramento regular das demandas de trabalho",
+                "Realizar check-ins periódicos sobre volume de trabalho",
+                "Oferecer recursos de apoio para períodos de pico de trabalho"
+            ],
+            "Risco Muito Baixo": [
+                "Documentar boas práticas atuais de gestão de demandas",
+                "Compartilhar casos de sucesso no gerenciamento de carga de trabalho",
+                "Manter práticas de gestão de demandas e continuar monitorando"
+            ]
+        },
+        # Adicionar os outros dicionários de sugestões das outras dimensões...
+        # (copiar o conteúdo do arquivo sugestoes.py)
+    }
+
+    plano_acao = []
+
+    # Para cada dimensão no resultado
+    for _, row in df_resultados.iterrows():
+        dimensao = row['Dimensão']
+        risco = row['Risco']
+        nivel_risco = risco.split()[0] + " " + risco.split()[1]  # Ex: "Risco Alto"
+
+        # Obter sugestões para esta dimensão e nível de risco
+        if dimensao in sugestoes_por_dimensao and nivel_risco in sugestoes_por_dimensao[dimensao]:
+            sugestoes = sugestoes_por_dimensao[dimensao][nivel_risco]
+
+            # Adicionar ao plano de ação
+            for sugestao in sugestoes:
+                plano_acao.append({
+                    "Dimensão": dimensao,
+                    "Nível de Risco": nivel_risco,
+                    "Média": row['Média'],
+                    "Sugestão de Ação": sugestao,
+                    "Responsável": "",
+                    "Prazo": "",
+                    "Status": "Não iniciada"
+                })
+
+    # Criar DataFrame com o plano de ação
+    df_plano_acao = pd.DataFrame(plano_acao)
+    return df_plano_acao
+
 # Função aprimorada para padronizar o formato de data
 def padronizar_formato_data(data_input):
     """
