@@ -113,7 +113,16 @@ def gerar_pdf_plano_acao(df_plano_acao):
         pdf.cell(0, 6, "Risco Alto: 1 < Media <= 2", ln=True)
         pdf.cell(0, 6, "Risco Moderado: 2 < Media <= 3", ln=True)
         pdf.cell(0, 6, "Risco Baixo: 3 < Media <= 4", ln=True)
-        pdf.cell(0,pdf.multi_cell(0, 6, "O questionario HSE-IT avalia 7 dimensoes de fatores psicossociais no trabalho: Demanda, Controle, Apoio da Chefia, Apoio dos Colegas, Relacionamentos, Funcao e Mudanca. Priorize as acoes nas dimensoes com maior risco.", 0)
+        pdf.cell(0, 6, "Risco Muito Baixo: Media > 4", ln=True)
+        
+        # Adicionar descrição das dimensões do HSE-IT
+        pdf.ln(5)
+        pdf.set_font("Arial", style='B', size=11)
+        pdf.cell(0, 8, "Sobre o HSE-IT:", ln=True)
+        pdf.set_font("Arial", size=9)
+        
+        # Corrigido: Transformei o cell/multi_cell incorreto em apenas um multi_cell
+        pdf.multi_cell(0, 6, "O questionario HSE-IT avalia 7 dimensoes de fatores psicossociais no trabalho: Demanda, Controle, Apoio da Chefia, Apoio dos Colegas, Relacionamentos, Funcao e Mudanca. Priorize as acoes nas dimensoes com maior risco.", 0)
         
         # Corrigindo o problema de BytesIO
         temp_file = "temp_plano_acao.pdf"
