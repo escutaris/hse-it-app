@@ -1,6 +1,5 @@
 {
   "name": "Python 3",
-  // Use Python 3.11 for better compatibility
   "image": "mcr.microsoft.com/devcontainers/python:1-3.11-bullseye",
   "customizations": {
     "codespaces": {
@@ -17,7 +16,7 @@
       ]
     }
   },
-  "updateContentCommand": "sudo apt-get update && sudo apt-get install -y libfreetype6-dev libpng-dev && pip install --upgrade pip && [ -f requirements.txt ] && pip install -r requirements.txt && pip install streamlit && echo '✅ Packages installed and Requirements met'",
+  "updateContentCommand": "sudo apt-get update && sudo apt-get install -y libfreetype6-dev libpng-dev libjpeg-dev libffi-dev && pip install --upgrade pip && [ -f requirements.txt ] && pip install -r requirements.txt && pip install streamlit>=1.30.0 && echo '✅ Packages installed and Requirements met'",
   "postAttachCommand": {
     "server": "streamlit run app.py --server.enableCORS false --server.enableXsrfProtection false"
   },
