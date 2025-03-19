@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import io
 from datetime import datetime
 from utils.processamento import classificar_risco
 
@@ -164,4 +165,106 @@ def plano_acao_editavel(df_plano_acao):
                     
                 df_plano_copia.to_excel(writer, sheet_name='Plano de Ação', index=False)
                 
-                # Formatar a
+                # Formatar a planilha
+                worksheet = writer.sheets['Plano de Ação']
+                
+                # Definir formatos
+                header_format = workbook.add_format({
+                    'bold': True,
+                    'text_wrap': True,
+                    'valign': 'top',
+                    'fg_color': '#D7E4BC',
+                    'border': 1
+                })
+
+                risco_format = {
+                    'Risco Muito Alto': workbook.add_format({'bg_color': '#FF6B6B', 'font_color': 'white'}),
+                    'Risco Alto': workbook.add_format({'bg_color': '#FFA500'}),
+                    'Risco Moderado': workbook.add_format({'bg_color': '#FFFF00'}),
+                    'Risco Baixo': workbook.add_format({'bg_color': '#90EE90'}),
+                    'Risco Muito Baixo': workbook.add_format({'bg_color': '#BB8FCE'})
+                }
+                
+                # Configurar largura das colunas
+                worksheet.set_column('A:A', 25)  # Dimensão
+                worksheet.set_column('B:B', 15)  # Nível de Risco
+                worksheet.set_column('C:C', 10)  # Média
+                worksheet.set_column('D:D', 50)  # Sugestão de Ação
+                worksheet.set_column('E:E', 15)  # Responsável
+                worksheet.set_column('F:F', 15)  # Prazo
+                worksheet.set_column('G:G', 15)  # Status
+                
+                # Adicionar cabeçalhos formatados
+                for col_num, value in enumerate(df_plano_copia.columns.values):
+                    worksheet.write(0, col_num, value, header_format)
+                
+                # Aplicar formatação condicional baseada no nível de risco
+                for row_num, (_, row) in enumerate(df_plano_copia.iterrows(), 1):
+                    nivel_risco = row["Nível de Risco"]
+                    if nivel_risco in risco_format:
+                        worksheet.write(row_num, 1, nivel_risco, risco_format[nivel_risco])
+                
+                # Adicionar validação de dados para a coluna Status
+                status_options = ['Não iniciada', 'Em andamento', 'Concluída', 'Cancelada']
+                worksheet.data_validation('G2:G1000', {'validate': 'list',
+                                                    'source': status_options,
+                                                    'input_title': 'Selecione o status:',
+                                                    'input_message': 'Escolha um status da lista'})
+                
+                # Adicionar filtros
+                worksheet.autofilter(0, 0, len(df_plano_copia), len(df_plano_copia.columns) - 1)
+                
+                # Congelar painel para manter cabeçalhos visíveis durante rolagem
+                worksheet.freeze_panes(1, 0)
+            
+            output.seek(0)
+            return output
+        
+        except Exception as e:
+            st.error(f"Erro ao gerar o arquivo Excel: {str(e)}")
+            return None
+    
+    # Botão para exportar plano personalizado
+    if st.button("Exportar Plano de Ação Personalizado"):
+        # Gerar Excel com o plano personalizado
+        output = gerar_excel_plano_personalizado(st.session_state.plano_acao_personalizado)
+        if output:
+            st.success("Plano de Ação gerado com sucesso!")
+            st.download_button(
+                label="Baixar Plano de Ação Personalizado",
+                data=output,
+                file_name="plano_acao_personalizado.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
+# Executar a função de plano de ação editável
+plano_acao_editavel(df_plano_acao)
+
+# Adicionar resumo do status do plano de ação
+if "plano_acao_personalizado" in st.session_state:
+    st.subheader("Resumo do Status do Plano")
+    
+    # Calcular estatísticas
+    plano = st.session_state.plano_acao_personalizado
+    total_acoes = len(plano)
+    acoes_por_status = plano["Status"].value_counts()
+    
+    # Criar colunas para métricas
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total de Ações", total_acoes)
+    
+    with col2:
+        st.metric("Não Iniciadas", acoes_por_status.get("Não iniciada", 0))
+    
+    with col3:
+        st.metric("Em Andamento", acoes_por_status.get("Em andamento", 0))
+    
+    with col4:
+        st.metric("Concluídas", acoes_por_status.get("Concluída", 0))
+    
+    # Adicionar gráfico de progresso
+    progresso = acoes_por_status.get("Concluída", 0) / total_acoes if total_acoes > 0 else 0
+    st.progress(progresso)
+    st.write(f"Progresso geral: {progresso*100:.1f}%")
